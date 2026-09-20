@@ -42,6 +42,11 @@ class CompanyAgentConfigEntity:
         #: assigns a distinct hue, so this is never None after loading.
         self.color = kwargs.get('color')
 
+        #: Whether this company is drawn in the charts. It takes part in the
+        #: simulation either way — the quota market depends on the whole set —
+        #: so this only controls what appears in the output. Defaults to True.
+        self.plot = kwargs.get('plot', True)
+
         for param in self.REQUIRED_PARAMS:
             setattr(self, param, require_kwarg(kwargs, param, 'CompanyAgentConfigEntity'))
 

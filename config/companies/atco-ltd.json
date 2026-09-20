@@ -2,6 +2,7 @@
   "name": "ATCO LTD",
   "dataSource": "ATCO LTD",
   "strategy": "business",
+  "plot": false,
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.4,

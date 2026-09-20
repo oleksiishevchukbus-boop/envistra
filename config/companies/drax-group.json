@@ -2,6 +2,7 @@
   "name": "DRAX GROUP",
   "dataSource": "DRAX GROUP PLC",
   "strategy": "business",
+  "plot": false,
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.35,

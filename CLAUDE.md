@@ -382,6 +382,14 @@ regression test asserts it does *not* suffice.
 Settings live in `config/simulation.json` (`dpi`, `figsize`, `format`, `resultsFolder`);
 the default is 600 dpi. Each run writes a timestamped folder under `results/`.
 
+**Which companies are drawn comes from the company**, `plot` in
+`config/companies/*.json`. Every company takes part in the simulation regardless — the
+quota market's supply and demand depend on the whole set — so the flag controls output
+only. A company with no `plot` key is drawn, so a newly added file shows up without
+further edits. Today the four AES CORP variants are `true` and the other eleven `false`,
+which reproduces the predecessor's `AgentList[:4]` comparison without the positional
+assumption. `Loader.plotted(companies)` returns the filtered list.
+
 **Line colour comes from the company**, `color` in `config/companies/*.json`. The loader
 gives any company without one a distinct generated hue, deterministic for a given set of
 files so two runs stay comparable. The four AES CORP files carry the original palette
@@ -390,11 +398,9 @@ cycled a four-entry list, which silently repeated colours beyond four agents.
 
 ## Decisions waiting on later steps
 
-- **How the strategy comparison picks its agents.** The predecessor sliced
-  `AgentList[:4]`, assuming the first four entries were the four AES CORP variants, and
-  `PlotBuilder.COLORS` has exactly four colours. Company files are discovered in filename
-  order, which is deterministic but arbitrary — the runners need an explicit selector
-  (a group field, or a named list) when they are transferred.
+- **Only one chart set exists.** `plot` is a single boolean, so producing both a
+  four-agent comparison and a fifteen-agent overview means flipping flags between runs.
+  Named groups would allow several sets at once, if that becomes worth the schema.
 - **`run_main.py` selected its agent by index** (`--agent`, default 14 = the last of 15).
   An index into a discovered directory is fragile; prefer selection by company name.
 - **The web backend has no agent CRUD**, and its `strategy_manager` rewrites one whole

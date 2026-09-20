@@ -389,7 +389,11 @@ def _assign_missing_colors(companies):
 
 def _build_company(path, data, strategies):
     check_keys(path, data, required=("name", "dataSource", "strategy", "parameters"),
-               optional=("color",))
+               optional=("color", "plot"))
+
+    plot = data.get("plot", True)
+    if not isinstance(plot, bool):
+        raise bad_value(path, "plot", plot, "true or false")
 
     color = data.get("color")
     if color is not None and not _HEX_COLOR.fullmatch(str(color)):
@@ -407,12 +411,23 @@ def _build_company(path, data, strategies):
 
     return CompanyAgentConfigEntity(
         color=color,
+        plot=plot,
         name=data["name"],
         dataSource=data["dataSource"],
         strategyId=strategy_id,
         Strategy=strategies[strategy_id],
         **params,
     )
+
+
+def plotted(companies):
+    """The companies that appear in charts.
+
+    Every company takes part in the simulation regardless — the quota market's
+    supply and demand depend on the whole set — so this filters what is drawn,
+    not what is run. A company with no `plot` key is drawn.
+    """
+    return [company for company in companies if company.plot]
 
 
 def verify_data_links(companies, available_names):

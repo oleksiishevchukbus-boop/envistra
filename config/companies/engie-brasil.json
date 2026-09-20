@@ -2,6 +2,7 @@
   "name": "ENGIE BRASIL",
   "dataSource": "ENGIE BRASIL ENERGIA SA",
   "strategy": "ignorance",
+  "plot": false,
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.4,

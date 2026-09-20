@@ -3,6 +3,7 @@
   "dataSource": "AES CORP",
   "strategy": "green",
   "color": "#5DDF4E",
+  "plot": true,
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.4,

@@ -2,6 +2,7 @@
   "name": "CEZ A S",
   "dataSource": "CEZ A.S",
   "strategy": "green",
+  "plot": false,
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.4,
