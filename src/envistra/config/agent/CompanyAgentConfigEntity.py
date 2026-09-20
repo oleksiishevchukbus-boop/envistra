@@ -42,9 +42,14 @@ class CompanyAgentConfigEntity:
         #: assigns a distinct hue, so this is never None after loading.
         self.color = kwargs.get('color')
 
-        #: Whether this company is drawn in the charts. It takes part in the
-        #: simulation either way — the quota market depends on the whole set —
-        #: so this only controls what appears in the output. Defaults to True.
+        #: Whether this company takes part in the simulation at all. A disabled
+        #: company becomes no agent, so it neither produces results nor trades
+        #: quota — which changes the market for everyone else. Defaults to True.
+        self.enabled = kwargs.get('enabled', True)
+
+        #: Whether this company is drawn in the charts. Independent of `enabled`:
+        #: a company can take part in the simulation, and so move the quota
+        #: market, without appearing in the output. Defaults to True.
         self.plot = kwargs.get('plot', True)
 
         for param in self.REQUIRED_PARAMS:

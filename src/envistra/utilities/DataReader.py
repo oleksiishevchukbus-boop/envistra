@@ -41,8 +41,11 @@ SCALED_COLUMNS = ["Pollution", "TotalAssets", "TotalCurrentAssets",
 
 class DataReader:
     def __init__(self, companies):
-        #: The roster, from config/companies/*.json — the file count is the agent count.
+        #: Every company config that was found.
         self.companies = companies
+        #: Those that actually become agents. A disabled company is skipped
+        #: entirely, so it does not trade and does not move the quota market.
+        self.activeCompanies = Loader.enabled(companies)
 
     def Read(self):
         """Load every workbook under the data folder and scale to model units."""
@@ -56,7 +59,9 @@ class DataReader:
         self.df[SCALED_COLUMNS] *= GlobalConfig.Startup.MoneyValueMultiplier
 
         # Fail here, naming the company, rather than deep inside entity creation.
-        Loader.verify_data_links(self.companies, self.df["Name"].unique())
+        # Only the active ones: a company may be disabled precisely because its
+        # workbook is not available.
+        Loader.verify_data_links(self.activeCompanies, self.df["Name"].unique())
         return self.df
 
     def PrepareStartingData(self):
@@ -65,7 +70,7 @@ class DataReader:
         self.startingData = self.df[self.df["Year"] == year]
 
         counts = self.startingData["Name"].value_counts()
-        needed = {c.dataSource for c in self.companies}
+        needed = {c.dataSource for c in self.activeCompanies}
         missing = sorted(needed - set(counts.index))
         duplicated = sorted(n for n in needed if counts.get(n, 0) > 1)
         if missing or duplicated:
@@ -119,7 +124,8 @@ class DataReader:
                 # share one dataSource, so the same ratio is fanned out to each.
                 bySource = self.df.groupby('Name')['PollutionToExpensesRatio'].mean()
                 self.pollutionToExpensesRatio = {
-                    company.name: bySource[company.dataSource] for company in self.companies
+                    company.name: bySource[company.dataSource]
+                    for company in self.activeCompanies
                 }
 
             case _:
@@ -141,7 +147,7 @@ class DataReader:
     def CreateCompanyEntities(self):
         """One entity per company config, seeded from its start-year row."""
         self.companyEntities = []
-        for company in self.companies:
+        for company in self.activeCompanies:
             row = self.startingData[self.startingData["Name"] == company.dataSource]
             industry = row["Industry"].item()
 

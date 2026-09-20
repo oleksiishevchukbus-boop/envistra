@@ -382,13 +382,27 @@ regression test asserts it does *not* suffice.
 Settings live in `config/simulation.json` (`dpi`, `figsize`, `format`, `resultsFolder`);
 the default is 600 dpi. Each run writes a timestamped folder under `results/`.
 
-**Which companies are drawn comes from the company**, `plot` in
-`config/companies/*.json`. Every company takes part in the simulation regardless — the
-quota market's supply and demand depend on the whole set — so the flag controls output
-only. A company with no `plot` key is drawn, so a newly added file shows up without
-further edits. Today the four AES CORP variants are `true` and the other eleven `false`,
-which reproduces the predecessor's `AgentList[:4]` comparison without the positional
-assumption. `Loader.plotted(companies)` returns the filtered list.
+### Two independent company flags
+
+`config/companies/*.json` carries two booleans, both defaulting to `true`, so a newly
+added file both runs and appears without further edits.
+
+| Flag | Effect | Helper |
+|---|---|---|
+| `enabled` | Takes part in the simulation. A disabled company becomes **no agent**: it does not trade, and removing it changes the quota market for everyone else. | `Loader.enabled(companies)` |
+| `plot` | Is drawn in the charts. Purely presentational — an enabled company still moves the market whether or not it is plotted. | `Loader.plotted(companies)` |
+
+`plot: true` with `enabled: false` is rejected at load: a disabled company produces no
+results to draw. An all-disabled roster is rejected too. Only *enabled* companies have
+their `dataSource` verified against the workbooks, so a company can be disabled precisely
+because its data is missing.
+
+Today the four AES CORP variants are `plot: true` and the other eleven `false`, which
+reproduces the predecessor's `AgentList[:4]` comparison without its positional assumption.
+
+Note that disabling is industry-sensitive: quota allocation is scoped per industry, so
+disabling a company only moves another's quota when they share an industry — though the
+shared quota market means traded amounts and prices shift regardless.
 
 **Line colour comes from the company**, `color` in `config/companies/*.json`. The loader
 gives any company without one a distinct generated hue, deterministic for a given set of

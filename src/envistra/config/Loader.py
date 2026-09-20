@@ -357,6 +357,10 @@ def load_companies(strategies, path=None):
         seen[company.name] = file.name
         companies.append(company)
 
+    if not any(company.enabled for company in companies):
+        raise ConfigError(directory,
+                          "every company is disabled — there would be no agents to simulate")
+
     _assign_missing_colors(companies)
     return companies
 
@@ -389,11 +393,22 @@ def _assign_missing_colors(companies):
 
 def _build_company(path, data, strategies):
     check_keys(path, data, required=("name", "dataSource", "strategy", "parameters"),
-               optional=("color", "plot"))
+               optional=("color", "plot", "enabled"))
 
     plot = data.get("plot", True)
     if not isinstance(plot, bool):
         raise bad_value(path, "plot", plot, "true or false")
+
+    enabled = data.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise bad_value(path, "enabled", enabled, "true or false")
+
+    if plot and not enabled:
+        raise ConfigError(
+            path,
+            "this company is disabled, so it produces no results to draw\n"
+            "  set enabled to true, or plot to false",
+            field="plot")
 
     color = data.get("color")
     if color is not None and not _HEX_COLOR.fullmatch(str(color)):
@@ -412,6 +427,7 @@ def _build_company(path, data, strategies):
     return CompanyAgentConfigEntity(
         color=color,
         plot=plot,
+        enabled=enabled,
         name=data["name"],
         dataSource=data["dataSource"],
         strategyId=strategy_id,
@@ -420,12 +436,22 @@ def _build_company(path, data, strategies):
     )
 
 
+def enabled(companies):
+    """The companies that take part in the simulation.
+
+    A disabled company becomes no agent at all: it neither produces results nor
+    trades, so removing one changes the quota market for everyone else. That is
+    the difference from `plotted`, which only decides what is drawn.
+    """
+    return [company for company in companies if company.enabled]
+
+
 def plotted(companies):
     """The companies that appear in charts.
 
-    Every company takes part in the simulation regardless — the quota market's
-    supply and demand depend on the whole set — so this filters what is drawn,
-    not what is run. A company with no `plot` key is drawn.
+    Filters what is drawn, not what is run — an enabled company still affects
+    the market whether or not it is plotted. A company with no `plot` key is
+    drawn.
     """
     return [company for company in companies if company.plot]
 
