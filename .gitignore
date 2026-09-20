@@ -84,6 +84,10 @@ web/frontend/.vite/
 # Simulation results
 results/
 
+# Source data workbooks — provenance and redistribution licence unresolved.
+# See data/README.md. The folder layout and schema stay tracked; the data does not.
+/data/**/*.xlsx
+
 # Playwright UI smoke-test screenshots
 test_*.png
 
