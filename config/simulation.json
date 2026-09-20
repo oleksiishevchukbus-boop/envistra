@@ -1,0 +1,8 @@
+{
+  "plots": {
+    "dpi": 600,
+    "figsize": [12, 5],
+    "format": "jpg",
+    "resultsFolder": "results"
+  }
+}

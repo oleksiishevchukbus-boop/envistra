@@ -38,6 +38,10 @@ class CompanyAgentConfigEntity:
         #: strategy, which is what the strategy comparison exercises.
         self.dataSource = require_kwarg(kwargs, 'dataSource', 'CompanyAgentConfigEntity')
 
+        #: Plot colour. None in the file means "pick one"; the loader then
+        #: assigns a distinct hue, so this is never None after loading.
+        self.color = kwargs.get('color')
+
         for param in self.REQUIRED_PARAMS:
             setattr(self, param, require_kwarg(kwargs, param, 'CompanyAgentConfigEntity'))
 

@@ -2,6 +2,7 @@
   "name": "AES CORP Business",
   "dataSource": "AES CORP",
   "strategy": "business",
+  "color": "#4E6EDF",
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.4,

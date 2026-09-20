@@ -2,6 +2,7 @@
   "name": "AES CORP Green",
   "dataSource": "AES CORP",
   "strategy": "green",
+  "color": "#5DDF4E",
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.4,

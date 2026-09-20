@@ -25,13 +25,21 @@ This repository is being assembled **component by component** from an earlier
 implementation at `E:\PHD\application\green-projects-abm`. The architecture below
 describes the finished target; not all of it exists yet.
 
-**Landed so far:** repository foundation (packaging, licence, documentation); `data/`
-(workbooks untracked — see `data/README.md`); `src/` — the whole model core;
-`config/` — restructured as file-driven JSON.
+**Landed so far:** repository foundation; `data/` (workbooks untracked — see
+`data/README.md`); `src/` — the model core; `config/` — file-driven JSON;
+`utilities/` — data reader, plots, run metadata, plus `bootstrap.py`.
 
-**The package imports and the configuration loads.** What is still missing is the layer
-that joins them to the data: `utilities/` (`DataReader`, `PlotBuilder`, the run-config
-writer), the CLI runners, and `web/`.
+**The model runs.** `initialize_model()` builds 15 agents from the company files and the
+workbooks, steps, and produces a history DataFrame; the plot suite and `run_config.json`
+work. What is missing is the CLI runners and `web/`.
+
+```python
+from envistra.bootstrap import initialize_model
+model, reader, companies, calculators = initialize_model(seed=42)
+for _ in range(20):
+    model.step()
+history = model.datacollector.get_agent_vars_dataframe()
+```
 
 When a part is transferred, update the two lines above.
 
@@ -183,12 +191,11 @@ reference lists the available ids. Adding a parameter means editing the config c
 Derived from the import graph; each tier depends only on earlier ones.
 
 ```
-DONE    config layer, QuotaMarket, estimators, calculators, QuotaManager,
-        CompanyAgent, CompanyEntity, CompanyAgentModel
-NEXT    DataReader — joins config to data; calls Loader.verify_data_links
-        PlotBuilder, the run-config writer
-        a thin bootstrap exposing initialize_model
-        CLI runners, web backend, web frontend
+DONE    config layer, model core, DataReader, PlotBuilder, ConfigSerializer,
+        bootstrap.initialize_model
+NEXT    run_main.py and run_strategy_comparison.py — the comparison selector
+        has to be decided there (see below)
+        web backend, web frontend
 ```
 
 ---
@@ -303,6 +310,22 @@ Money is scaled by `MoneyValueMultiplier = 10e-9`, efficiency by
 
 ---
 
+## Fixed during the `utilities/` transfer
+
+- **Charts could be written into the wrong run's folder.** Every plot method built its own
+  figure but then called the module-level `plt.savefig`/`plt.close`, so two simulations
+  plotting concurrently — which the web backend does, on a two-worker pool — interleaved on
+  the same current figure. Now `fig.savefig(...)` / `plt.close(fig)`, with a threaded test.
+- **A run could not be reproduced.** See Reproducibility above.
+- **The strategy-name heuristic is deleted.** It inferred the strategy from approach values
+  and a `finInvestment >= 0.5` threshold, returning `"Unknown"` beyond the original four.
+- **`run_config.json` was incomplete**: the pollution block read class defaults, so a
+  strategy overriding an MLP hyperparameter had the override silently dropped from the
+  record; `smoothingAlpha` was omitted although the estimator consumes it; and `agent_count`
+  could exceed the number of agents actually recorded.
+- **Plot filenames are slugged.** Titles become filenames and company names now come from
+  user-authored JSON, so a `/` or `:` would have produced an unwritable Windows path.
+
 ## Fixed during the `src/` transfer
 
 Kept on record because they explain why behaviour differs from the predecessor.
@@ -342,6 +365,28 @@ Flag these when the relevant component is transferred; each needs a decision.
   `Loader.load_environment()`. The model reads them live on every step, so this is
   deliberate; note it is process-global, which matters if the web backend ever runs
   simulations concurrently.
+
+### Reproducibility
+
+**A run is only reproducible if `initialize_model(seed=...)` is given a seed.** There are
+two independent sources of randomness and both must be pinned: Mesa's own RNG drives the
+shuffled buy order in `shuffle_do("BuyQuota")`, and `RevenueCalculator` samples
+`random.gauss` from the `random` module. Seeding one and not the other looks deterministic
+and is not — seeding only `random` was what the predecessor's structure invited, and a
+regression test asserts it does *not* suffice.
+
+`run_config.json` records the seed; `null` there means the run cannot be reproduced.
+
+### Plot output
+
+Settings live in `config/simulation.json` (`dpi`, `figsize`, `format`, `resultsFolder`);
+the default is 600 dpi. Each run writes a timestamped folder under `results/`.
+
+**Line colour comes from the company**, `color` in `config/companies/*.json`. The loader
+gives any company without one a distinct generated hue, deterministic for a given set of
+files so two runs stay comparable. The four AES CORP files carry the original palette
+explicitly, so the strategy-comparison charts look as they always did. The predecessor
+cycled a four-entry list, which silently repeated colours beyond four agents.
 
 ## Decisions waiting on later steps
 

@@ -15,8 +15,10 @@ A company names its strategy by id and adds its own four efficiency parameters.
 Several companies may name the same strategy, and several may share one
 dataSource — the four AES CORP variants do both.
 """
+import colorsys
 import json
 import os
+import re
 from pathlib import Path
 
 from envistra.config.Errors import ConfigError, bad_value, check_keys
@@ -35,6 +37,8 @@ from envistra.config.environment.EnvironmentConfig import (
     RevenueCalculatorConfig,
 )
 from envistra.config.strategies.StrategyEntity import StrategyEntity
+
+_HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{6}")
 
 # Only the approaches that are actually implemented. The predecessor's validator
 # accepted seven investment approaches where two exist; the estimators now raise
@@ -352,11 +356,44 @@ def load_companies(strategies, path=None):
                               field="name")
         seen[company.name] = file.name
         companies.append(company)
+
+    _assign_missing_colors(companies)
     return companies
 
 
+def _assign_missing_colors(companies):
+    """Give every company without a `color` a distinct, evenly-spaced hue.
+
+    Deterministic for a given set of company files, not random per run: two runs
+    of the same configuration must produce comparable plots. Companies that
+    declare a colour keep it and are immune to a file being added; generated
+    hues may shift when the set changes.
+    """
+    uncolored = [c for c in companies if c.color is None]
+    if not uncolored:
+        return
+    taken = {c.color.upper() for c in companies if c.color}
+    step = 1.0 / len(uncolored)
+    for i, company in enumerate(uncolored):
+        # Walk the hue circle, alternating lightness so neighbours stay distinct
+        # even when there are many of them.
+        r, g, b = colorsys.hls_to_rgb((i * step) % 1.0, 0.45 + 0.12 * (i % 2), 0.70)
+        candidate = "#{:02X}{:02X}{:02X}".format(int(r * 255), int(g * 255), int(b * 255))
+        while candidate in taken:  # never collide with an explicit colour
+            r, g, b = colorsys.hls_to_rgb(((i + 0.5) * step) % 1.0, 0.55, 0.70)
+            candidate = "#{:02X}{:02X}{:02X}".format(int(r * 255), int(g * 255), int(b * 255))
+            taken.add(candidate)
+        taken.add(candidate)
+        company.color = candidate
+
+
 def _build_company(path, data, strategies):
-    check_keys(path, data, required=("name", "dataSource", "strategy", "parameters"))
+    check_keys(path, data, required=("name", "dataSource", "strategy", "parameters"),
+               optional=("color",))
+
+    color = data.get("color")
+    if color is not None and not _HEX_COLOR.fullmatch(str(color)):
+        raise bad_value(path, "color", color, 'a hex colour such as "#4E6EDF"')
 
     strategy_id = data["strategy"]
     if strategy_id not in strategies:
@@ -369,6 +406,7 @@ def _build_company(path, data, strategies):
         _number(path, f"parameters.{key}", params[key], 0)
 
     return CompanyAgentConfigEntity(
+        color=color,
         name=data["name"],
         dataSource=data["dataSource"],
         strategyId=strategy_id,
@@ -398,10 +436,44 @@ def verify_data_links(companies, available_names):
 
 # --------------------------------------------------------------------------- #
 
+DEFAULT_PLOTS = {"dpi": 600, "figsize": [12, 5], "format": "jpg", "resultsFolder": "results"}
+
+
+def load_simulation(path=None):
+    """Read config/simulation.json — run-wide settings such as plot output.
+
+    Every key is optional; the defaults above apply. Unlike the environment,
+    these are presentation settings, so a missing file is not an error.
+    """
+    path = Path(path) if path else config_dir() / "simulation.json"
+    data = _read(path) if path.is_file() else {}
+    check_keys(path, data, required=(), optional=("plots",))
+
+    plots = dict(DEFAULT_PLOTS)
+    given = data.get("plots", {})
+    check_keys(path, given, required=(), optional=DEFAULT_PLOTS.keys(), context="plots")
+    plots.update(given)
+
+    _number(path, "plots.dpi", plots["dpi"], 10, 2400)
+    if not (isinstance(plots["figsize"], list) and len(plots["figsize"]) == 2):
+        raise bad_value(path, "plots.figsize", plots["figsize"], "a [width, height] pair")
+    for i, side in enumerate(plots["figsize"]):
+        _number(path, f"plots.figsize[{i}]", side, 1)
+    if plots["format"] not in ("jpg", "png", "svg", "pdf"):
+        raise bad_value(path, "plots.format", plots["format"], "jpg | png | svg | pdf")
+
+    plots["figsize"] = tuple(plots["figsize"])
+    return {"plots": plots}
+
+
 def load_all(path=None):
-    """Load the whole configuration. Returns (environment, strategies, companies)."""
+    """Load the whole configuration.
+
+    Returns (environment, strategies, companies, simulation).
+    """
     directory = config_dir(path)
     environment = load_environment(directory / "environment.json")
     strategies = load_strategies(directory / "strategies")
     companies = load_companies(strategies, directory / "companies")
-    return environment, strategies, companies
+    simulation = load_simulation(directory / "simulation.json")
+    return environment, strategies, companies, simulation

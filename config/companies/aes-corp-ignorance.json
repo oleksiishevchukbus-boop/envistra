@@ -2,6 +2,7 @@
   "name": "AES CORP Ignorance",
   "dataSource": "AES CORP",
   "strategy": "ignorance",
+  "color": "#DF4E4E",
   "parameters": {
     "finEffCoef": 1.0,
     "ecoEffCoef": 1.4,

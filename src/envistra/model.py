@@ -9,10 +9,14 @@ from envistra.environment.QuotaMarket import QuotaMarket
 
 
 class CompanyAgentModel(mesa.Model):
-    def __init__(self, companyEntities, **kwargs):
-        super().__init__()
+    def __init__(self, companyEntities, seed=None, **kwargs):
+        # The buy phase runs in shuffled order, drawn from Mesa's own RNG — which
+        # is seeded from entropy unless one is given here. Seeding the `random`
+        # module alone does not make a run reproducible.
+        super().__init__(seed=seed)
+        self.seed_value = seed
         for companyEntity in companyEntities:
-            agent = CompanyAgent(self, companyEntity)
+            CompanyAgent(self, companyEntity)
 
         self.QuotaManager = QuotaManager(EnvironmentConfig.QuotaManager.Approach, companyEntities)
         self.__InitEnvironment(kwargs)
