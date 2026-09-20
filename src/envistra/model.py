@@ -1,7 +1,7 @@
 import mesa
 
 from envistra.config.Enums import CompanyAgentFields
-from envistra.config.Environment.EnvironmentConfig import EnvironmentConfig
+from envistra.config.environment.EnvironmentConfig import EnvironmentConfig
 
 from envistra.agent.CompanyAgent import CompanyAgent
 from envistra.environment.QuotaManager import QuotaManager

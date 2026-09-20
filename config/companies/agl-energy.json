@@ -1,0 +1,11 @@
+{
+  "name": "AGL ENERGY",
+  "dataSource": "AGL ENERGY LTD",
+  "strategy": "ignorance",
+  "parameters": {
+    "finEffCoef": 1.0,
+    "ecoEffCoef": 1.35,
+    "finEffInvest": 1.0,
+    "ecoEffInvest": 1.0
+  }
+}

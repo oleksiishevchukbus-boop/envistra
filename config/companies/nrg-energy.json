@@ -1,0 +1,11 @@
+{
+  "name": "NRG ENERGY",
+  "dataSource": "NRG ENERGY, INC.",
+  "strategy": "green",
+  "parameters": {
+    "finEffCoef": 1.0,
+    "ecoEffCoef": 1.4,
+    "finEffInvest": 5.0,
+    "ecoEffInvest": 10.0
+  }
+}

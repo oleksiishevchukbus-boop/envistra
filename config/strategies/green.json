@@ -1,0 +1,60 @@
+{
+  "name": "Green",
+  "description": "0% Financial / 100% Ecological focus",
+  "color": "#5DDF4E",
+  "estimators": {
+    "expenses": {
+      "approach": "performance_based",
+      "changeThreshold_Upper": 0.1,
+      "changeThreshold_Lower": 0.025,
+      "smoothingAlpha": 0.7,
+      "featuresImpact": {
+        "netRevenue": 0,
+        "quotaExceedance": 1
+      }
+    },
+    "investment": {
+      "approach": "revenue_based",
+      "investmentRatios": {
+        "revenueToInvestmentRatio": 0.075,
+        "minimalInvestment": 0.002,
+        "finInvestment": 0,
+        "ecoInvestment": 1
+      },
+      "smoothingAlpha": 0.3,
+      "baseQuotaPrice": 2.5,
+      "adaptiveBlendRatio": 0.5
+    },
+    "pollution": {
+      "approach": "MLP_based"
+    },
+    "expenses_re_estimation": {
+      "approach": "gap_proportional",
+      "maxReductionRate": 0.35,
+      "profitMargin": 1.0,
+      "maxReductionCap": 0.0,
+      "baseRate": 0.0,
+      "trendSensitivity": 0.0
+    }
+  },
+  "calculators": {
+    "quota_to_sell_amount": {
+      "approach": "reserve_based",
+      "quotaReserve": 0.1
+    },
+    "quota_to_sell_price": {
+      "approach": "history_based",
+      "unitPrice": 1.75,
+      "changeThreshold": 0.2,
+      "salesTarget": 0.5
+    },
+    "quota_to_buy_amount": {
+      "approach": "reserve_based",
+      "quotaReserve": 0.1
+    },
+    "quota_to_buy_price": {
+      "approach": "gap_full_cover",
+      "assetsPartForTrading": 0.2
+    }
+  }
+}

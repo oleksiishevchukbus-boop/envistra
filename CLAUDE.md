@@ -26,12 +26,12 @@ implementation at `E:\PHD\application\green-projects-abm`. The architecture belo
 describes the finished target; not all of it exists yet.
 
 **Landed so far:** repository foundation (packaging, licence, documentation); `data/`
-(workbooks untracked — see `data/README.md`); **`src/` — the whole model core**.
+(workbooks untracked — see `data/README.md`); `src/` — the whole model core;
+`config/` — restructured as file-driven JSON.
 
-**Not yet landed:** `config/`. The model core therefore **does not import yet** — every
-`from envistra.config…` line is currently unresolved. That is expected and is the next
-step; five config modules (`Enums`, `GlobalConfig`, `Environment/EnvironmentConfig` and
-two `__init__`) are enough to close it.
+**The package imports and the configuration loads.** What is still missing is the layer
+that joins them to the data: `utilities/` (`DataReader`, `PlotBuilder`, the run-config
+writer), the CLI runners, and `web/`.
 
 When a part is transferred, update the two lines above.
 
@@ -50,8 +50,10 @@ These are standing decisions. Apply them to every component transferred.
 
 | Source (`green-projects-abm`) | Target (`envistra`) |
 |---|---|
-| `config/*.py`, `config/Agent/`, `config/Environment/`, `config/Strategies/` | `src/envistra/config/…` |
-| `config/environment.json`, `config/strategies.json` | `config/` (repo root — runtime data, edited by the UI) |
+| `config/*.py`, `config/Agent/`, `config/Environment/`, `config/Strategies/` | `src/envistra/config/` (lowercase sub-packages) |
+| `config/Strategies/Strategies.py` | **deleted** → `config/strategies/*.json` |
+| `config/Agent/CampaignAgentConfig.py` | **deleted** → `config/companies/*.json` |
+| `config/environment.json`, `config/strategies.json` | `config/` at the repo root — runtime data |
 | `src/CampaignAgentModel.py` | `src/envistra/model.py` |
 | `src/Agent/` | `src/envistra/agent/` |
 | `src/Agent/Estimators/`, `src/Agent/Calculators/` | `src/envistra/agent/estimators/`, `…/calculators/` |
@@ -125,19 +127,62 @@ Program names are defined once in `src/envistra/__init__.py` (`FULL_NAME_UK`,
 character-identical to the назва in the заява and on the титульний аркуш of the deposited
 source listing; see `E:\PHD\application\ENVISTRA-naming-and-registration.md`.
 
+### Configuration is file-driven
+
+`config/` at the repository root is the source of truth. There are **no Python default
+literals** — the predecessor kept three copies of "the defaults" which had already drifted
+apart (`competition_influence` was 0.2, 0.2 and 0.1 in three places), and a missing key
+silently took whichever copy the code path reached.
+
+```
+config/environment.json        the regulatory regime
+config/strategies/<id>.json    one per strategy; id is the filename stem
+config/companies/<id>.json     one per agent — the file count IS the agent count
+```
+
+A company names its strategy by id and adds its four personal parameters:
+
+```json
+{ "name": "AES CORP Business", "dataSource": "AES CORP", "strategy": "business",
+  "parameters": { "finEffCoef": 1.0, "ecoEffCoef": 1.4,
+                  "finEffInvest": 1.0, "ecoEffInvest": 1.0 } }
+```
+
+`name` is the agent label (DataCollector `Name`, plot legends, results folders).
+`dataSource` joins to the workbooks' `Name` column; several companies may share one, as
+the four AES CORP variants do. This one file replaces both hardcoded structures the
+predecessor used — `GlobalConfig.AgentList` and `CampaignAgentConfigDict` — so the
+unguarded `KeyError` when a name appeared in one but not the other is gone by construction.
+
+`envistra.config.Loader` owns discovery, validation and construction:
+
+- `load_environment()` applies to the `EnvironmentConfig` classes in place — the model
+  reads those module-level singletons live on every step, so that contract is fixed.
+- `load_strategies()` returns `{id: StrategyEntity}`. **Any number of strategies works.**
+  The predecessor mapped strategies onto four fixed class attributes through a hardcoded
+  name table, so a fifth was written to disk, shown in the UI, and silently dropped before
+  it could ever run.
+- `load_companies()` discovers `config/companies/*.json` in filename order.
+- `verify_data_links()` is called by the data reader once workbooks are loaded — not at
+  parse time, because `data/*.xlsx` is untracked and may be absent.
+
+**Validation runs on the load path** (it ran nowhere in the predecessor). Unknown keys are
+an error with a spelling suggestion, missing required keys name the field, `approach`
+values are checked against the **implemented** sets only, and a dangling strategy
+reference lists the available ids. Adding a parameter means editing the config class and
+`Loader`; there is no separate serializer to keep in sync.
+
 ### Transfer order
 
 Derived from the import graph; each tier depends only on earlier ones.
 
 ```
-Tier 0  config leaves (Enums, GlobalConfig, ConfigHelpers, EnvironmentConfig,
-        the 8 estimator/calculator config classes) + QuotaMarket
-Tier 1  estimators, calculators, QuotaManager
-Tier 2  Strategies, CompanyAgent, CompanyEntity
-Tier 3  CompanyAgentConfig, CompanyAgentModel
-Tier 4  DataReader, PlotBuilder, serializers, ConfigLoader
-Tier 5  Startup / bootstrap
-Tier 6  CLI runners, web backend, web frontend
+DONE    config layer, QuotaMarket, estimators, calculators, QuotaManager,
+        CompanyAgent, CompanyEntity, CompanyAgentModel
+NEXT    DataReader — joins config to data; calls Loader.verify_data_links
+        PlotBuilder, the run-config writer
+        a thin bootstrap exposing initialize_model
+        CLI runners, web backend, web frontend
 ```
 
 ---
@@ -282,13 +327,25 @@ reads it now; it was left as agent state rather than deleted.
 
 Flag these when the relevant component is transferred; each needs a decision.
 
-- **`competition_influence` is 0.1 in `environment.json` but 0.2 in the Python default.**
-  JSON wins at runtime; the Python literal is stale.
 - **`simulation_runner._run_strategy_comparison_sync` duplicates ~200 lines** of
   `run_strategy_comparison.generate_plots`.
 - **`utilities/Startup.py` is a 60+ symbol god-module** wildcard-imported by a runner.
   Consider a thin `bootstrap.py` exposing only `initialize_model`.
 - **`RevenueCalculator` uses unseeded `random`/`numpy`** — runs are not reproducible.
-- **Config classes are mutable module-level singletons**, mutated in place by the
-  deserializers and by `CompanyAgentConfigs.rebuild()`. Any move to instance-based config
-  must rework the `ConfigLoader.reload_*` functions.
+- **Config classes are mutable module-level singletons**, applied in place by
+  `Loader.load_environment()`. The model reads them live on every step, so this is
+  deliberate; note it is process-global, which matters if the web backend ever runs
+  simulations concurrently.
+
+## Decisions waiting on later steps
+
+- **How the strategy comparison picks its agents.** The predecessor sliced
+  `AgentList[:4]`, assuming the first four entries were the four AES CORP variants, and
+  `PlotBuilder.COLORS` has exactly four colours. Company files are discovered in filename
+  order, which is deterministic but arbitrary — the runners need an explicit selector
+  (a group field, or a named list) when they are transferred.
+- **`run_main.py` selected its agent by index** (`--agent`, default 14 = the last of 15).
+  An index into a discovered directory is fragile; prefer selection by company name.
+- **The web backend has no agent CRUD**, and its `strategy_manager` rewrites one whole
+  `strategies.json`. Both need rework for per-file configs; strategy identity in the REST
+  API is the display name, which is now distinct from the filename id.

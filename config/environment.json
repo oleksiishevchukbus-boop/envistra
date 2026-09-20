@@ -1,0 +1,35 @@
+{
+  "revenue_calculator": {
+    "approach": "competitive_industry_based",
+    "competition_influence": 0.1,
+    "fin_eff_impact_multiplier": 1.2
+  },
+  "pollution_calculator": {
+    "approach": "company_based",
+    "env_eff_impact_multiplier": 1
+  },
+  "quota_manager": {
+    "approach": "historical_pollution_based",
+    "quota_cap_decreaser": 0.935,
+    "linear_reduction_factor": 0.0125,
+    "reward_pool_share": 0.3,
+    "tightening_strength": 0.5,
+    "penalty_tiers": [
+      {
+        "until_step": 3,
+        "price": 1.25,
+        "description": "Grace period - low penalty to allow adjustment"
+      },
+      {
+        "until_step": 8,
+        "price": 2.5,
+        "description": "Transition period - medium penalty"
+      },
+      {
+        "until_step": "inf",
+        "price": 5,
+        "description": "Full enforcement - high penalty"
+      }
+    ]
+  }
+}

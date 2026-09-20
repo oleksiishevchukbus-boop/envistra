@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from envistra.config.Environment.EnvironmentConfig import EnvironmentConfig
+from envistra.config.environment.EnvironmentConfig import EnvironmentConfig
 
 
 # TODO: (for __CompetitiveApproach) Consider mean|median for stdFinEff

@@ -1,5 +1,5 @@
 import pandas as pd
-from envistra.config.Environment.EnvironmentConfig import EnvironmentConfig
+from envistra.config.environment.EnvironmentConfig import EnvironmentConfig
 
 
 # TODO: Consider leverage quota penalty

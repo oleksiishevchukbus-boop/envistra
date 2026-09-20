@@ -1,0 +1,11 @@
+{
+  "name": "SNAM SPA",
+  "dataSource": "SNAM SPA",
+  "strategy": "revenue-by-quota",
+  "parameters": {
+    "finEffCoef": 1.0,
+    "ecoEffCoef": 1.8,
+    "finEffInvest": 1.0,
+    "ecoEffInvest": 1.0
+  }
+}

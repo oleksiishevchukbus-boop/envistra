@@ -1,4 +1,4 @@
-from envistra.config.Environment.EnvironmentConfig import EnvironmentConfig
+from envistra.config.environment.EnvironmentConfig import EnvironmentConfig
 
 
 # TODO: Perform research about theoretical ratio value (1% air pollution => 0.002 fin. assets)

@@ -1,0 +1,11 @@
+{
+  "name": "ENGIE BRASIL",
+  "dataSource": "ENGIE BRASIL ENERGIA SA",
+  "strategy": "ignorance",
+  "parameters": {
+    "finEffCoef": 1.0,
+    "ecoEffCoef": 1.4,
+    "finEffInvest": 15.0,
+    "ecoEffInvest": 50.0
+  }
+}

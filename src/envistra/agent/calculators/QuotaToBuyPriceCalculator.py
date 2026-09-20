@@ -1,4 +1,4 @@
-from envistra.config.Environment.EnvironmentConfig import EnvironmentConfig
+from envistra.config.environment.EnvironmentConfig import EnvironmentConfig
 
 
 class QuotaToBuyPriceCalculator:

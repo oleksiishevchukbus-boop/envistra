@@ -1,0 +1,11 @@
+{
+  "name": "INFIGEN ENERGY",
+  "dataSource": "INFIGEN ENERGY",
+  "strategy": "revenue-by-quota",
+  "parameters": {
+    "finEffCoef": 1.0,
+    "ecoEffCoef": 1.4,
+    "finEffInvest": 1.0,
+    "ecoEffInvest": 1.0
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "CHUBU ELECTRIC POWER",
+  "dataSource": "CHUBU ELECTRIC POWER CO INC",
+  "strategy": "business",
+  "parameters": {
+    "finEffCoef": 0.2,
+    "ecoEffCoef": 0.5,
+    "finEffInvest": 1.0,
+    "ecoEffInvest": 1.0
+  }
+}

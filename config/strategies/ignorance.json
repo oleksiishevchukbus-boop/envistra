@@ -1,0 +1,60 @@
+{
+  "name": "Ignorance",
+  "description": "100% Financial / 0% Ecological focus",
+  "color": "#DF4E4E",
+  "estimators": {
+    "expenses": {
+      "approach": "performance_based",
+      "changeThreshold_Upper": 0.15,
+      "changeThreshold_Lower": 0.05,
+      "smoothingAlpha": 0.7,
+      "featuresImpact": {
+        "netRevenue": 1,
+        "quotaExceedance": 0
+      }
+    },
+    "investment": {
+      "approach": "revenue_based",
+      "investmentRatios": {
+        "revenueToInvestmentRatio": 0.075,
+        "minimalInvestment": 0.002,
+        "finInvestment": 1,
+        "ecoInvestment": 0
+      },
+      "smoothingAlpha": 0.3,
+      "baseQuotaPrice": 2.5,
+      "adaptiveBlendRatio": 0.5
+    },
+    "pollution": {
+      "approach": "general"
+    },
+    "expenses_re_estimation": {
+      "approach": "none",
+      "maxReductionRate": 0.0,
+      "profitMargin": 1.0,
+      "maxReductionCap": 0.0,
+      "baseRate": 0.0,
+      "trendSensitivity": 0.0
+    }
+  },
+  "calculators": {
+    "quota_to_sell_amount": {
+      "approach": "reserve_based",
+      "quotaReserve": 0
+    },
+    "quota_to_sell_price": {
+      "approach": "general",
+      "unitPrice": 2.5,
+      "changeThreshold": 0,
+      "salesTarget": 0.5
+    },
+    "quota_to_buy_amount": {
+      "approach": "reserve_based",
+      "quotaReserve": 0
+    },
+    "quota_to_buy_price": {
+      "approach": "ignorance",
+      "assetsPartForTrading": 0.1
+    }
+  }
+}

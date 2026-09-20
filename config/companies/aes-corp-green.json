@@ -1,0 +1,11 @@
+{
+  "name": "AES CORP Green",
+  "dataSource": "AES CORP",
+  "strategy": "green",
+  "parameters": {
+    "finEffCoef": 1.0,
+    "ecoEffCoef": 1.4,
+    "finEffInvest": 1.0,
+    "ecoEffInvest": 1.0
+  }
+}

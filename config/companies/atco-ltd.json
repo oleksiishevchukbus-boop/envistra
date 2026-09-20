@@ -1,0 +1,11 @@
+{
+  "name": "ATCO LTD",
+  "dataSource": "ATCO LTD",
+  "strategy": "business",
+  "parameters": {
+    "finEffCoef": 1.0,
+    "ecoEffCoef": 1.4,
+    "finEffInvest": 1.0,
+    "ecoEffInvest": 1.0
+  }
+}
