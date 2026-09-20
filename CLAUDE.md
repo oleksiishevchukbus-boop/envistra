@@ -28,7 +28,10 @@ describes the finished target; not all of it exists yet.
 **Landed so far:** repository foundation; `data/` (workbooks untracked — see
 `data/README.md`); `src/` — the model core; `config/` — file-driven JSON;
 `utilities/` — data reader, plots, run metadata, plus `bootstrap.py`;
-`web/backend/` — the REST + WebSocket API.
+`web/backend/` — the REST + WebSocket API; `web/frontend/` — the React UI.
+
+**Only the two CLI runners remain** (`run_main.py`, `run_strategy_comparison.py`).
+Everything else is transferred and the whole stack runs.
 
 **The model runs.** `initialize_model()` builds 15 agents from the company files and the
 workbooks, steps, and produces a history DataFrame; the plot suite and `run_config.json`
@@ -195,7 +198,6 @@ Derived from the import graph; each tier depends only on earlier ones.
 DONE    config layer, model core, DataReader, PlotBuilder, ConfigSerializer,
         bootstrap.initialize_model
 NEXT    run_main.py and run_strategy_comparison.py — they reuse PlotSuite
-        web frontend
 ```
 
 ---
@@ -424,13 +426,16 @@ files so two runs stay comparable. The four AES CORP files carry the original pa
 explicitly, so the strategy-comparison charts look as they always did. The predecessor
 cycled a four-entry list, which silently repeated colours beyond four agents.
 
-### The web backend
+### Running the web stack
 
-Run it from the repository root, which is where `web` sits on the path:
+Two processes, from the repository root — which is where `web` sits on the path:
 
 ```bash
 python -m uvicorn web.backend.main:app --reload --port 8000
+cd web/frontend && npm install && npm run dev      # http://localhost:5173
 ```
+
+Vite proxies `/api` and `/ws` to port 8000, so the backend must be on that port.
 
 - **Config files are the API's shape**, so the managers read and write them
   directly instead of round-tripping through a serializer. `envistra.config.Writer`
@@ -451,6 +456,26 @@ python -m uvicorn web.backend.main:app --reload --port 8000
 - **Progress frames are buffered per run and replayed on connect**, so a client that
   connects a moment late still sees the whole run. Previously only the last status
   survived.
+
+### The web frontend
+
+- **`/companies` is a new page** — the roster is file-driven now, so it lists every
+  company with its effective colour and toggles for `enabled` (takes part in the
+  simulation) and `plot` (drawn in the charts), plus create, edit and delete.
+- **The Dashboard's counts come from the API.** It used to say a hardcoded "4 agents";
+  it now reports how many are simulated and how many charted, and offers a seed field.
+- **Reset buttons became "Reload from Disk"** on both config pages, matching the backend.
+- **The WebSocket handler follows the backend's frames** — `started`, `initialized`,
+  `step`, `plot`, `completed`, `error`, `ping` — and reads the explicit `progress`
+  percentage rather than deriving one from the step count. Since the backend replays
+  buffered frames on connect, the handler clears its plot list when a socket opens.
+- **About is rewritten** to describe the current model: file-driven configuration, the
+  two company flags, the 16-phase step, reproducibility via seed, and a note that
+  results are not comparable with the predecessor.
+
+A contract check in the verification suite asserts every endpoint the client calls
+exists, every frame the backend emits is handled, and every approach the forms offer is
+one the loader accepts.
 
 ## Decisions waiting on later steps
 
