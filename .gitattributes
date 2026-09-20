@@ -1,0 +1,15 @@
+# Normalise all text to LF, in the repository and on checkout.
+# Keeps the deposited source listing byte-identical across machines.
+* text=auto eol=lf
+
+# Binary — never convert.
+*.xlsx binary
+*.xls  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.pdf  binary
+
+# Generated / third-party — excluded from language stats and diffs.
+package-lock.json linguist-generated=true
