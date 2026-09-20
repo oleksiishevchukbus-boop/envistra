@@ -134,6 +134,12 @@ literals** — the predecessor kept three copies of "the defaults" which had alr
 apart (`competition_influence` was 0.2, 0.2 and 0.1 in three places), and a missing key
 silently took whichever copy the code path reached.
 
+The environment classes enforce this rather than merely documenting it: they declare no
+attributes at all, and a metaclass turns any read before `load_environment()` into a
+`ConfigNotLoadedError` naming the setting and saying what to call. So forgetting to load
+config fails immediately instead of running the model on stale numbers. `EnvironmentConfig`
+holds the classes themselves, not instances, so every read goes through that check.
+
 ```
 config/environment.json        the regulatory regime
 config/strategies/<id>.json    one per strategy; id is the filename stem

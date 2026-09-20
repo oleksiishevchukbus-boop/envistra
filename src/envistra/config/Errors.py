@@ -11,12 +11,36 @@ import difflib
 class ConfigError(Exception):
     """A configuration file is missing, malformed, or inconsistent."""
 
-    def __init__(self, path, message, field=None):
-        self.path = str(path)
+    def __init__(self, path=None, message="", field=None):
+        self.path = None if path is None else str(path)
         self.field = field
         self.message = message
+        if self.path is None:
+            super().__init__(message)
+            return
         location = self.path if field is None else f"{self.path}: {field}"
         super().__init__(f"{location}\n  {message}")
+
+
+class ConfigNotLoadedError(ConfigError):
+    """A setting was read before the configuration was loaded.
+
+    The environment classes hold no values of their own. Reading one before
+    `Loader.load_environment()` has run is a programming error, and failing here
+    is the point: the predecessor kept Python literals beside the JSON, so a
+    forgotten load silently ran the model on stale numbers that differed from
+    the file.
+    """
+
+    def __init__(self, class_name, attr):
+        self.class_name = class_name
+        self.attr = attr
+        super().__init__(message=(
+            f"{class_name}.{attr} has no value — the environment configuration "
+            f"has not been loaded.\n"
+            f"  Call envistra.config.Loader.load_environment() (or load_all()) first.\n"
+            f"  Values come from config/environment.json; there are no Python defaults."
+        ))
 
 
 def unknown_key(path, key, known, context=""):

@@ -1,65 +1,91 @@
-class RevenueCalculatorConfig:
-    # Approach determines how revenue is calculated for agents
-    # "industry_based": Revenue based on industry averages
-    # "competitive_industry_based": Revenue affected by competition within industry
-    Approach = "competitive_industry_based"
+"""The environment regime: revenue, pollution and quota-allocation settings.
 
-    # How much competition affects revenue (0.0 = no effect, 1.0 = fully competitive)
-    # At 0.2, competition has a moderate influence on agent revenue outcomes
-    CompetitionInfluence = 0.2
+**These classes hold no values.** `Loader.load_environment()` assigns every
+attribute from `config/environment.json`, which is the only source. Reading one
+beforehand raises `ConfigNotLoadedError` rather than returning a stale number.
 
-    # Multiplier for financial efficiency impact on revenue
-    # Higher values mean financial efficiency improvements yield more revenue benefit
-    FinEffImpactMultiplier = 1.2
+That is the point of the design. The predecessor kept Python literals here
+alongside the JSON, nominally as fallbacks; they drifted out of step with the
+file (`CompetitionInfluence` was 0.2 here and 0.1 in the JSON), so a code path
+that forgot to load config ran the model on different numbers without saying so.
 
-
-class PollutionCalculatorConfig:
-    # Approach determines how pollution is calculated for agents
-    # "industry_based": Pollution based on industry averages
-    # "company_based": Pollution based on individual company historical ratios
-    Approach = "company_based"
-
-    # Multiplier for ecological efficiency impact on pollution reduction
-    # At 1.0, eco-efficiency investments directly reduce pollution proportionally
-    EnvEffImpactMultiplier = 1.0
+The classes stay module-level singletons because the simulation reads them live
+on every step — the quota manager and both environment calculators consult them
+inside the step loop, so a value changed between runs in one process takes
+effect immediately.
+"""
+from envistra.config.Errors import ConfigNotLoadedError
 
 
-class QuotaManagerConfig:
-    # "expenses_based", "historical_pollution_based", "improvement_rewarding", "grandfathered_with_tightening"
-    Approach = "historical_pollution_based"
+class _RequiresLoad(type):
+    """Makes reading an unset setting fail loudly, and say what to do about it.
 
-    # Annual quota cap reduction rate (10% decrease per year simulating tightening regulations)
-    # A value of 0.9 means the quota cap is multiplied by 0.9 each year
-    QuotaCapDecreaser = 0.935
+    `__getattr__` runs only when normal lookup fails, so once
+    `load_environment()` has assigned the attributes this is never consulted.
+    """
 
-    # Linear reduction factor per step (1.25% reduction, based on EU ETS Phase 4 targets)
-    # This represents the annual linear reduction in the total quota cap
-    LinearReductionFactor = 0.0125
+    def __getattr__(cls, name):
+        # Dunder probes (copy, pickle, inspect) must keep getting AttributeError.
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        raise ConfigNotLoadedError(cls.__name__, name)
 
-    # Share of industry cap allocated to reward pool (improvement_rewarding approach)
-    # 0.0 = all equal, 1.0 = all reward-based
-    RewardPoolShare = 0.3
 
-    # Strength of intensity-based tightening (grandfathered_with_tightening approach)
-    # 0.0 = no adjustment, 1.0 = full intensity adjustment
-    TighteningStrength = 0.5
+class RevenueCalculatorConfig(metaclass=_RequiresLoad):
+    """Set from `environment.json` -> `revenue_calculator`.
 
-    # Penalty tiers configuration (escalating penalties encourage early compliance)
-    # Structure: {"until_step": threshold, "price": penalty per unit, "description": rationale}
-    PENALTY_TIERS = [
-        {"until_step": 3, "price": 1.25, "description": "Grace period - low penalty to allow adjustment"},
-        {"until_step": 8, "price": 2.5, "description": "Transition period - medium penalty"},
-        {"until_step": float('inf'), "price": 5.0, "description": "Full enforcement - high penalty"},
-    ]
+    Approach
+        "industry_based" — revenue from industry averages.
+        "competitive_industry_based" — revenue also affected by competitors'
+        financial efficiency within the industry.
+    CompetitionInfluence
+        How strongly competition moves revenue, 0.0 (none) to 1.0 (fully).
+    FinEffImpactMultiplier
+        How much financial-efficiency investment converts into revenue.
+    """
+
+
+class PollutionCalculatorConfig(metaclass=_RequiresLoad):
+    """Set from `environment.json` -> `pollution_calculator`.
+
+    Approach
+        "industry_based" — pollution from the industry's mean intensity.
+        "company_based" — pollution from the company's own historical ratio.
+    EnvEffImpactMultiplier
+        How much ecological-efficiency investment reduces pollution. At 1.0 the
+        reduction is proportional to eco-efficiency.
+    """
+
+
+class QuotaManagerConfig(metaclass=_RequiresLoad):
+    """Set from `environment.json` -> `quota_manager`.
+
+    Approach
+        "expenses_based", "historical_pollution_based", "improvement_rewarding"
+        or "grandfathered_with_tightening".
+    QuotaCapDecreaser
+        Multiplicative annual tightening of the industry cap.
+    LinearReductionFactor
+        Per-step linear reduction of the cap, in the style of EU ETS Phase 4.
+    RewardPoolShare
+        Share of the industry cap held back for the reward pool under
+        "improvement_rewarding". 0.0 allocates equally, 1.0 entirely by merit.
+    TighteningStrength
+        Strength of the intensity adjustment under
+        "grandfathered_with_tightening". 0.0 applies none.
+    PENALTY_TIERS
+        Escalating price per unit of exceedance, as
+        `{"until_step", "price", "description"}`, ascending, the last one
+        open-ended. Escalation exists so that early non-compliance is cheap
+        enough to adapt to and late non-compliance is not.
+    """
 
     @staticmethod
     def GetQuotaPenaltyUnitPrice(step):
-        """Get the penalty price per unit of quota exceedance based on simulation step.
+        """Penalty per unit of quota exceedance at this step.
 
-        Penalties escalate over time to simulate increasing regulatory strictness:
-        - Steps 0-2: Grace period (1.25 per unit)
-        - Steps 3-7: Transition period (2.5 per unit)
-        - Steps 8+: Full enforcement (5.0 per unit)
+        Returns the first tier the step falls below, which is why the loader
+        requires the tiers to ascend.
         """
         for tier in QuotaManagerConfig.PENALTY_TIERS:
             if step < tier["until_step"]:
@@ -68,6 +94,14 @@ class QuotaManagerConfig:
 
 
 class EnvironmentConfig:
-    RevenueCalculator = RevenueCalculatorConfig()
-    PollutionCalculator = PollutionCalculatorConfig()
-    QuotaManager = QuotaManagerConfig()
+    """Namespace the simulation reads through, e.g.
+    `EnvironmentConfig.QuotaManager.LinearReductionFactor`.
+
+    These are the classes themselves, not instances. The predecessor held
+    instances whose attribute reads happened to fall through to the class; with
+    the classes directly, every read goes through `_RequiresLoad`.
+    """
+
+    RevenueCalculator = RevenueCalculatorConfig
+    PollutionCalculator = PollutionCalculatorConfig
+    QuotaManager = QuotaManagerConfig
