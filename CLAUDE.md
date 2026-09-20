@@ -25,9 +25,20 @@ This repository is being assembled **component by component** from an earlier
 implementation at `E:\PHD\application\green-projects-abm`. The architecture below
 describes the finished target; not all of it exists yet.
 
-**Landed so far:** repository foundation (packaging, licence, documentation).
+**Landed so far:** repository foundation (packaging, licence, documentation); `data/`
+(workbooks untracked — see `data/README.md`); **`src/` — the whole model core**.
 
-When a part is transferred, update the "Landed so far" line above.
+**Not yet landed:** `config/`. The model core therefore **does not import yet** — every
+`from envistra.config…` line is currently unresolved. That is expected and is the next
+step; five config modules (`Enums`, `GlobalConfig`, `Environment/EnvironmentConfig` and
+two `__init__`) are enough to close it.
+
+When a part is transferred, update the two lines above.
+
+> **Results diverge from the predecessor project from the `src/` transfer onward.**
+> A live bug in the `economically_efficient` quota-buy path destroyed quota instead of
+> returning it to the market; fixing it changes the numbers for the Business and
+> RevenueByQuotaSale strategies. Output is no longer comparable with green-projects-abm.
 
 ---
 
@@ -43,7 +54,9 @@ These are standing decisions. Apply them to every component transferred.
 | `config/environment.json`, `config/strategies.json` | `config/` (repo root — runtime data, edited by the UI) |
 | `src/CampaignAgentModel.py` | `src/envistra/model.py` |
 | `src/Agent/` | `src/envistra/agent/` |
+| `src/Agent/Estimators/`, `src/Agent/Calculators/` | `src/envistra/agent/estimators/`, `…/calculators/` |
 | `src/Environment/` | `src/envistra/environment/` |
+| `src/Environment/Calculators/` | `src/envistra/environment/calculators/` |
 | `utilities/` | `src/envistra/utilities/` |
 | `run_main.py`, `run_strategy_comparison.py` | repo root |
 | `web/`, `data/` | unchanged |
@@ -51,6 +64,11 @@ These are standing decisions. Apply them to every component transferred.
 The source had **no packaging at all** — `config/`, `src/` and `utilities/` were bare
 directories that imported only because the CWD happened to be the repo root. Here they
 are a real package: imports are absolute, `from envistra.config.Enums import …`.
+
+**Package directories are lowercase** (`agent/`, `environment/`, `config/`,
+`estimators/`, `calculators/`); **module files stay PascalCase** (`CompanyAgent.py`,
+`QuotaToBuyPriceCalculator.py`). Relative imports are used within a sub-package
+(`from .estimators import AgentEstimators`) and absolute ones across packages.
 
 Because the Python config and the JSON config now live in different trees,
 **`ConfigLoader.PROJECT_ROOT` must be recomputed** — the module sits two levels deeper
@@ -147,6 +165,11 @@ Driven by `CompanyAgentModel.step()` in `src/envistra/model.py`:
 15. `ImplementOperations()` — update assets and net revenue
 16. `ApplyLinearReductionFactor()` — tighten the quota cap (climate policy)
 
+> The model dispatches these phases by **string literal**
+> (`self.agents.do("EstimateExpenses")`). Renaming a phase method without updating its
+> string fails at *runtime*, not at import, and only for that phase — so the run continues
+> with one stage silently skipped. Change both together.
+
 > The source's CLAUDE.md claimed `ReEstimateExpenses()` was commented out. **It is
 > active.** Only a trailing second `datacollector.collect` call is commented out.
 
@@ -169,11 +192,11 @@ Driven by `CompanyAgentModel.step()` in `src/envistra/model.py`:
   `AgentSet` API (`agents.do(...)`, `agents.shuffle_do(...)`), not a classic scheduler.
 - `agent/CompanyAgent.py` — the per-step agent behaviour listed above
 - `agent/CompanyEntity.py` — validated data container built from historical data
-- `agent/Estimators/` — Expenses, Investment, Pollution (MLP), ExpensesRe-estimation
-- `agent/Calculators/` — quota buy/sell amount and price
+- `agent/estimators/` — Expenses, Investment, Pollution (MLP), ExpensesRe-estimation
+- `agent/calculators/` — quota buy/sell amount and price
 - `environment/QuotaManager.py` — allocation, penalties, cap tightening
 - `environment/QuotaMarket.py` — the lot book
-- `environment/Calculators/` — Revenue, Pollution
+- `environment/calculators/` — Revenue, Pollution
 
 **Utilities (`src/envistra/utilities/`)**
 - `DataReader.py` — loads Excel data, applies scaling, builds `CompanyEntity` objects
@@ -229,12 +252,36 @@ Money is scaled by `MoneyValueMultiplier = 10e-9`, efficiency by
 
 ---
 
+## Fixed during the `src/` transfer
+
+Kept on record because they explain why behaviour differs from the predecessor.
+
+- **Quota destroyed by the `economically_efficient` buy path.**
+  `__CreatePurchaseTransactionDictForGapFullCover` decrements every lot it takes from the
+  shared market; the caller then filtered out the lots priced above the penalty and passed
+  the **already-filtered** dict to `__ReturnExpensiveLotsToMarket`, so those lots were
+  never refunded. That function's own condition was the exact negation of the filter, so
+  its body was unreachable and nothing was ever refunded. It now receives the unfiltered
+  dict and does both the refund and the filtering. **This changes results** for the
+  Business and RevenueByQuotaSale strategies.
+- **`QuotaMarket.TakeQuotaLot` raised `UnboundLocalError`** — `lot` was bound only in the
+  full-lot branch while the partial branch dereferenced it. Behaviour-neutral: the method
+  is dead, because the buy-side calculator mutates `marketDict` directly.
+- **Nine `match self.approach` dispatchers had no `case _`**, so an unrecognised approach
+  returned `None` and failed far from the cause. They now raise `ValueError`.
+- **Dead code removed**: an unused `CompanyAgentFields` import in `ExpensesEstimator`; the
+  `historyData`/`steps`, `finEff`/`penaltyHistory` and
+  `industryAvgEcoEff`/`agentEcoEff`/`avgQuotaPrice`/`baseQuotaPrice` kwargs that no branch
+  read, together with the per-agent-per-step market scan and industry eco-eff aggregation
+  that existed only to compute them.
+
+`self.penaltyHistory` is still accumulated in `PayQuotaExceedancePenalty` although nothing
+reads it now; it was left as agent state rather than deleted.
+
 ## Known issues carried over from the source
 
 Flag these when the relevant component is transferred; each needs a decision.
 
-- **`QuotaMarket.TakeQuotaLot` has a latent `NameError`** — the partial-fill branch
-  references `lot` before assignment.
 - **`competition_influence` is 0.1 in `environment.json` but 0.2 in the Python default.**
   JSON wins at runtime; the Python literal is stale.
 - **`simulation_runner._run_strategy_comparison_sync` duplicates ~200 lines** of
