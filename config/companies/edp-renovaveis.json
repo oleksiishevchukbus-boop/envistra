@@ -2,6 +2,7 @@
   "name": "EDP RENOVAVEIS",
   "dataSource": "EDP RENOVAVEIS",
   "strategy": "green",
+  "enabled": true,
   "plot": false,
   "parameters": {
     "finEffCoef": 1.0,

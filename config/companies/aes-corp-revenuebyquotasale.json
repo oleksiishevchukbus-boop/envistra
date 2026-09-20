@@ -3,6 +3,7 @@
   "dataSource": "AES CORP",
   "strategy": "revenue-by-quota",
   "color": "#DFAE4E",
+  "enabled": true,
   "plot": true,
   "parameters": {
     "finEffCoef": 1.0,

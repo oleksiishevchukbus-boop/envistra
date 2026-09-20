@@ -2,6 +2,7 @@
   "name": "INFIGEN ENERGY",
   "dataSource": "INFIGEN ENERGY",
   "strategy": "revenue-by-quota",
+  "enabled": true,
   "plot": false,
   "parameters": {
     "finEffCoef": 1.0,

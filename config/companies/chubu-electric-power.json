@@ -2,6 +2,7 @@
   "name": "CHUBU ELECTRIC POWER",
   "dataSource": "CHUBU ELECTRIC POWER CO INC",
   "strategy": "business",
+  "enabled": true,
   "plot": false,
   "parameters": {
     "finEffCoef": 0.2,

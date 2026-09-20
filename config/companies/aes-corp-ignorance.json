@@ -3,6 +3,7 @@
   "dataSource": "AES CORP",
   "strategy": "ignorance",
   "color": "#DF4E4E",
+  "enabled": true,
   "plot": true,
   "parameters": {
     "finEffCoef": 1.0,

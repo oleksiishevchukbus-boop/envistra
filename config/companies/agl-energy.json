@@ -2,6 +2,7 @@
   "name": "AGL ENERGY",
   "dataSource": "AGL ENERGY LTD",
   "strategy": "ignorance",
+  "enabled": true,
   "plot": false,
   "parameters": {
     "finEffCoef": 1.0,

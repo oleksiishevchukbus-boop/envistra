@@ -2,6 +2,7 @@
   "name": "ITALGAS SPA",
   "dataSource": "ITALGAS SPA",
   "strategy": "business",
+  "enabled": true,
   "plot": false,
   "parameters": {
     "finEffCoef": 1.0,
