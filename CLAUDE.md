@@ -27,7 +27,8 @@ describes the finished target; not all of it exists yet.
 
 **Landed so far:** repository foundation; `data/` (workbooks untracked — see
 `data/README.md`); `src/` — the model core; `config/` — file-driven JSON;
-`utilities/` — data reader, plots, run metadata, plus `bootstrap.py`.
+`utilities/` — data reader, plots, run metadata, plus `bootstrap.py`;
+`web/backend/` — the REST + WebSocket API.
 
 **The model runs.** `initialize_model()` builds 15 agents from the company files and the
 workbooks, steps, and produces a history DataFrame; the plot suite and `run_config.json`
@@ -193,9 +194,8 @@ Derived from the import graph; each tier depends only on earlier ones.
 ```
 DONE    config layer, model core, DataReader, PlotBuilder, ConfigSerializer,
         bootstrap.initialize_model
-NEXT    run_main.py and run_strategy_comparison.py — the comparison selector
-        has to be decided there (see below)
-        web backend, web frontend
+NEXT    run_main.py and run_strategy_comparison.py — they reuse PlotSuite
+        web frontend
 ```
 
 ---
@@ -310,6 +310,20 @@ Money is scaled by `MoneyValueMultiplier = 10e-9`, efficiency by
 
 ---
 
+## Fixed during the `web/backend/` transfer
+
+- **The chart list is declared once**, in `envistra.utilities.PlotSuite`. The backend
+  duplicated `run_strategy_comparison.generate_plots` almost exactly — 29 versus 28 plot
+  calls, 19 shared titles — so a chart changed in one silently diverged from the other.
+  The titles are also the image filenames the UI groups by, so they are now single-sourced.
+- **The progress total is derived**, not hand-kept. The backend advertised 21 plots while
+  emitting 25; the suite declares 24 and reports 24.
+- **Path traversal on image requests is rejected.** `image_name` came from the URL and was
+  joined onto the results folder unchecked.
+- **The image format is no longer hardcoded** as jpg in two places; it follows
+  `config/simulation.json`.
+- **Progress frames survive a late connection** (see above).
+
 ## Fixed during the `utilities/` transfer
 
 - **Charts could be written into the wrong run's folder.** Every plot method built its own
@@ -409,6 +423,34 @@ gives any company without one a distinct generated hue, deterministic for a give
 files so two runs stay comparable. The four AES CORP files carry the original palette
 explicitly, so the strategy-comparison charts look as they always did. The predecessor
 cycled a four-entry list, which silently repeated colours beyond four agents.
+
+### The web backend
+
+Run it from the repository root, which is where `web` sits on the path:
+
+```bash
+python -m uvicorn web.backend.main:app --reload --port 8000
+```
+
+- **Config files are the API's shape**, so the managers read and write them
+  directly instead of round-tripping through a serializer. `envistra.config.Writer`
+  validates through the loader's own parser before writing, and writes atomically, so
+  a rejected change leaves the previous file intact — which matters because invalid
+  config now stops the app from starting rather than falling back.
+- **`ConfigError` maps to 400** through an exception handler, so the loader's messages
+  (which name the file and field) reach the client instead of becoming a 500.
+- **Strategies are addressed by display name**, storage by filename id; both are
+  returned. A rename edits the `name` field and leaves the file alone, because company
+  configs reference the id. Deleting a strategy a company uses is refused, naming the
+  companies — referential integrity the predecessor never had.
+- **`/reset` is gone** for strategies and environment. It restored Python defaults that
+  were deliberately deleted; `git checkout config/` is the honest equivalent. `/reload`
+  remains.
+- **`/api/companies` is new** — the predecessor had no agent API because the roster was
+  hardcoded. Full CRUD, so creating a file adds an agent.
+- **Progress frames are buffered per run and replayed on connect**, so a client that
+  connects a moment late still sees the whole run. Previously only the last status
+  survived.
 
 ## Decisions waiting on later steps
 

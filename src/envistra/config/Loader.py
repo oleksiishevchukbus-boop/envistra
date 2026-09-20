@@ -110,6 +110,64 @@ def _number(path, field, value, low=None, high=None):
 # Environment
 # --------------------------------------------------------------------------- #
 
+def parse_environment(path, data):
+    """Validate the environment document and return the resolved values.
+
+    Assigns nothing. Validation is separated from application so that a document
+    rejected halfway through cannot leave the config classes holding a mixture of
+    old and new values — which matters now that the API can submit one.
+    """
+    check_keys(path, data, required=("revenue_calculator", "pollution_calculator", "quota_manager"))
+
+    rc = data["revenue_calculator"]
+    check_keys(path, rc, ("approach", "competition_influence", "fin_eff_impact_multiplier"),
+               context="revenue_calculator")
+    pc = data["pollution_calculator"]
+    check_keys(path, pc, ("approach", "env_eff_impact_multiplier"), context="pollution_calculator")
+    qm = data["quota_manager"]
+    check_keys(path, qm, ("approach", "quota_cap_decreaser", "linear_reduction_factor",
+                          "reward_pool_share", "tightening_strength", "penalty_tiers"),
+               context="quota_manager")
+
+    return {
+        "revenue": {
+            "Approach": _approach(path, "revenue_calculator", rc, "revenue_calculator"),
+            "CompetitionInfluence": _number(
+                path, "revenue_calculator.competition_influence", rc["competition_influence"], 0, 1),
+            "FinEffImpactMultiplier": _number(
+                path, "revenue_calculator.fin_eff_impact_multiplier",
+                rc["fin_eff_impact_multiplier"], 0),
+        },
+        "pollution": {
+            "Approach": _approach(path, "pollution_calculator", pc, "pollution_calculator"),
+            "EnvEffImpactMultiplier": _number(
+                path, "pollution_calculator.env_eff_impact_multiplier",
+                pc["env_eff_impact_multiplier"], 0),
+        },
+        "quota": {
+            "Approach": _approach(path, "quota_manager", qm, "quota_manager"),
+            "QuotaCapDecreaser": _number(
+                path, "quota_manager.quota_cap_decreaser", qm["quota_cap_decreaser"], 0, 1),
+            "LinearReductionFactor": _number(
+                path, "quota_manager.linear_reduction_factor", qm["linear_reduction_factor"], 0, 1),
+            "RewardPoolShare": _number(
+                path, "quota_manager.reward_pool_share", qm["reward_pool_share"], 0, 1),
+            "TighteningStrength": _number(
+                path, "quota_manager.tightening_strength", qm["tightening_strength"], 0, 1),
+            "PENALTY_TIERS": _penalty_tiers(path, qm["penalty_tiers"]),
+        },
+    }
+
+
+def _apply_environment(values):
+    for attr, value in values["revenue"].items():
+        setattr(RevenueCalculatorConfig, attr, value)
+    for attr, value in values["pollution"].items():
+        setattr(PollutionCalculatorConfig, attr, value)
+    for attr, value in values["quota"].items():
+        setattr(QuotaManagerConfig, attr, value)
+
+
 def load_environment(path=None):
     """Read config/environment.json and apply it to the config classes.
 
@@ -118,38 +176,7 @@ def load_environment(path=None):
     """
     path = Path(path) if path else config_dir() / "environment.json"
     data = _read(path)
-    check_keys(path, data, required=("revenue_calculator", "pollution_calculator", "quota_manager"))
-
-    rc = data["revenue_calculator"]
-    check_keys(path, rc, ("approach", "competition_influence", "fin_eff_impact_multiplier"),
-               context="revenue_calculator")
-    RevenueCalculatorConfig.Approach = _approach(path, "revenue_calculator", rc, "revenue_calculator")
-    RevenueCalculatorConfig.CompetitionInfluence = _number(
-        path, "revenue_calculator.competition_influence", rc["competition_influence"], 0, 1)
-    RevenueCalculatorConfig.FinEffImpactMultiplier = _number(
-        path, "revenue_calculator.fin_eff_impact_multiplier", rc["fin_eff_impact_multiplier"], 0)
-
-    pc = data["pollution_calculator"]
-    check_keys(path, pc, ("approach", "env_eff_impact_multiplier"), context="pollution_calculator")
-    PollutionCalculatorConfig.Approach = _approach(path, "pollution_calculator", pc, "pollution_calculator")
-    PollutionCalculatorConfig.EnvEffImpactMultiplier = _number(
-        path, "pollution_calculator.env_eff_impact_multiplier", pc["env_eff_impact_multiplier"], 0)
-
-    qm = data["quota_manager"]
-    check_keys(path, qm, ("approach", "quota_cap_decreaser", "linear_reduction_factor",
-                          "reward_pool_share", "tightening_strength", "penalty_tiers"),
-               context="quota_manager")
-    QuotaManagerConfig.Approach = _approach(path, "quota_manager", qm, "quota_manager")
-    QuotaManagerConfig.QuotaCapDecreaser = _number(
-        path, "quota_manager.quota_cap_decreaser", qm["quota_cap_decreaser"], 0, 1)
-    QuotaManagerConfig.LinearReductionFactor = _number(
-        path, "quota_manager.linear_reduction_factor", qm["linear_reduction_factor"], 0, 1)
-    QuotaManagerConfig.RewardPoolShare = _number(
-        path, "quota_manager.reward_pool_share", qm["reward_pool_share"], 0, 1)
-    QuotaManagerConfig.TighteningStrength = _number(
-        path, "quota_manager.tightening_strength", qm["tightening_strength"], 0, 1)
-    QuotaManagerConfig.PENALTY_TIERS = _penalty_tiers(path, qm["penalty_tiers"])
-
+    _apply_environment(parse_environment(path, data))
     return data
 
 
@@ -212,9 +239,16 @@ def load_strategies(path=None):
     if not files:
         raise ConfigError(directory, "no strategy files found")
 
-    strategies = {}
+    strategies, by_name = {}, {}
     for file in files:
-        strategies[file.stem] = _build_strategy(file, _read(file))
+        strategy = _build_strategy(file, _read(file))
+        # The API addresses strategies by display name, so two files claiming one
+        # name would make a request ambiguous.
+        if strategy.name in by_name:
+            raise ConfigError(file, f"strategy name {strategy.name!r} is already used by "
+                                    f"{by_name[strategy.name]}", field="name")
+        by_name[strategy.name] = file.name
+        strategies[file.stem] = strategy
     return strategies
 
 
@@ -350,7 +384,7 @@ def load_companies(strategies, path=None):
 
     companies, seen = [], {}
     for file in files:
-        company = _build_company(file, _read(file), strategies)
+        company = _build_company(file, _read(file), strategies, config_id=file.stem)
         if company.name in seen:
             raise ConfigError(file, f"company name {company.name!r} is already used by {seen[company.name]}",
                               field="name")
@@ -391,7 +425,7 @@ def _assign_missing_colors(companies):
         company.color = candidate
 
 
-def _build_company(path, data, strategies):
+def _build_company(path, data, strategies, config_id=None):
     check_keys(path, data, required=("name", "dataSource", "strategy", "parameters"),
                optional=("color", "plot", "enabled"))
 
@@ -425,6 +459,7 @@ def _build_company(path, data, strategies):
         _number(path, f"parameters.{key}", params[key], 0)
 
     return CompanyAgentConfigEntity(
+        configId=config_id if config_id is not None else path.stem,
         color=color,
         plot=plot,
         enabled=enabled,

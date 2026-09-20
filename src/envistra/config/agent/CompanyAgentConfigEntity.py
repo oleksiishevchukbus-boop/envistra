@@ -30,6 +30,10 @@ class CompanyAgentConfigEntity:
     ]
 
     def __init__(self, **kwargs):
+        #: The filename stem this company was loaded from, so a writer can find
+        #: its file again without matching on content.
+        self.configId = kwargs.get('configId')
+
         #: Agent label — DataCollector "Name", plot legends, results folders.
         self.name = require_kwarg(kwargs, 'name', 'CompanyAgentConfigEntity')
 
