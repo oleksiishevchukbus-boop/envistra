@@ -428,14 +428,30 @@ cycled a four-entry list, which silently repeated colours beyond four agents.
 
 ### Running the web stack
 
-Two processes, from the repository root — which is where `web` sits on the path:
+One command, from the repository root:
+
+```bash
+python run_web.py
+```
+
+`run_web.py` starts uvicorn and Vite together, prefixes their output, opens the
+browser and stops both on Ctrl+C. It runs a preflight first — package, node modules,
+workbooks, ports — so a missing prerequisite is named instead of surfacing as a
+confusing failure later.
+
+It kills each child's whole process tree on exit. Uvicorn's `--reload` runs the
+server in a subprocess, so terminating only the parent leaves the real server
+holding the port.
+
+The two parts separately, still from the repository root (`web` sits on the path):
 
 ```bash
 python -m uvicorn web.backend.main:app --reload --port 8000
-cd web/frontend && npm install && npm run dev      # http://localhost:5173
+cd web/frontend && npm run dev      # http://localhost:5173
 ```
 
-Vite proxies `/api` and `/ws` to port 8000, so the backend must be on that port.
+Vite proxies `/api` and `/ws` to `ENVISTRA_API_TARGET`, defaulting to port 8000 —
+which is why the launcher can move the API port and the proxy still follows.
 
 - **Config files are the API's shape**, so the managers read and write them
   directly instead of round-tripping through a serializer. `envistra.config.Writer`
