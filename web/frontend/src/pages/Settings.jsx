@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
+import UnsavedChangesGuard from '../components/UnsavedChangesGuard'
 
 // Run-wide settings from config/simulation.json — currently chart output. Every
 // run re-reads the file, so a saved change applies to the next simulation.
@@ -27,6 +28,8 @@ const inputClass =
 
 function Settings() {
   const [plots, setPlots] = useState(null)
+  // The settings as last loaded or saved; differing from it means unsaved edits.
+  const [savedPlots, setSavedPlots] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -37,7 +40,9 @@ function Settings() {
   const load = async () => {
     try {
       setLoading(true)
-      setPlots((await api.getSettings()).plots)
+      const loaded = (await api.getSettings()).plots
+      setPlots(loaded)
+      setSavedPlots(JSON.stringify(loaded))
       setError(null)
     } catch (err) {
       setError(err.message)
@@ -56,10 +61,14 @@ function Settings() {
       setSaving(true)
       setError(null)
       setSuccess(null)
-      setPlots((await api.updateSettings({ plots })).plots)
+      const saved = (await api.updateSettings({ plots })).plots
+      setPlots(saved)
+      setSavedPlots(JSON.stringify(saved))
       flash('Settings saved — they apply to the next simulation run')
+      return true
     } catch (err) {
       setError(err.message)
+      return false
     } finally {
       setSaving(false)
     }
@@ -105,8 +114,11 @@ function Settings() {
     ? `${w} × ${h} in at ${dpi} dpi = ${Math.round(w * dpi)} × ${Math.round(h * dpi)} px`
     : `${w} × ${h} in, vector — dpi applies only to embedded raster parts`
 
+  const dirty = JSON.stringify(plots) !== savedPlots
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
+      <UnsavedChangesGuard when={dirty} onSave={handleSave} />
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-mono font-semibold text-gray-100">Settings</h1>

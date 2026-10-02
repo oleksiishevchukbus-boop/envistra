@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
+import UnsavedChangesGuard from '../components/UnsavedChangesGuard'
 import StrategyCard from '../components/strategies/StrategyCard'
 
 function Strategies() {
@@ -9,6 +10,8 @@ function Strategies() {
   const [expandedStrategy, setExpandedStrategy] = useState(null)
   const [editingStrategy, setEditingStrategy] = useState(null)
   const [editForm, setEditForm] = useState(null)
+  // The strategy as it was when editing began; differing means unsaved edits.
+  const [editBaseline, setEditBaseline] = useState(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -47,6 +50,7 @@ function Strategies() {
 
   const handleEdit = (name) => {
     setEditingStrategy(name)
+    setEditBaseline(JSON.stringify(editForm))
   }
 
   const handleCancelEdit = () => {
@@ -63,6 +67,7 @@ function Strategies() {
       setSaving(true)
       await api.updateStrategy(editingStrategy, editForm)
       setEditingStrategy(null)
+      setEditBaseline(null)
       await loadStrategies()
       // Reload expanded strategy
       if (expandedStrategy) {
@@ -70,8 +75,10 @@ function Strategies() {
         setEditForm(updated)
         setExpandedStrategy(editForm.name)
       }
+      return true
     } catch (err) {
       setError(err.message)
+      return false
     } finally {
       setSaving(false)
     }
@@ -183,8 +190,11 @@ function Strategies() {
     )
   }
 
+  const dirty = editingStrategy !== null && JSON.stringify(editForm) !== editBaseline
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
+      <UnsavedChangesGuard when={dirty} onSave={handleSave} />
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

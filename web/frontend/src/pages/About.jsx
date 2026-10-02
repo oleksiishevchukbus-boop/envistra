@@ -269,7 +269,8 @@ function About() {
         </p>
         <p className="text-gray-400">
           Results also include <code>model_history.csv</code> — the complete per-agent,
-          per-step record for every agent, not only the ones that were charted.
+          per-step record for every agent, not only the ones that were charted. Each row
+          carries both its <code>Step</code> and its <code>Year</code> (step 1 is the start year).
         </p>
       </Section>
 

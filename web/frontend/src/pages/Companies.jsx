@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
+import UnsavedChangesGuard from '../components/UnsavedChangesGuard'
 
 // One file under config/companies/ per company, so the number of rows here is
 // the number of agents. `enabled` decides whether a company takes part in the
@@ -35,6 +36,8 @@ function Companies() {
   const [busy, setBusy] = useState(null)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(null)
+  // The form as opened; differing from it means the dialog holds unsaved edits.
+  const [formBaseline, setFormBaseline] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -111,6 +114,7 @@ function Companies() {
         : api.updateCompany(editing, payload)
     )
     if (ok) { setEditing(null); setForm(null) }
+    return ok
   }
 
   const remove = async (company) => {
@@ -122,7 +126,7 @@ function Companies() {
 
   const startEdit = (company) => {
     setEditing(company ? company.name : '__new__')
-    setForm(company
+    const initial = company
       ? {
           name: company.name,
           dataSource: company.dataSource,
@@ -132,11 +136,19 @@ function Companies() {
           color: company.color ?? null,
           parameters: { ...company.parameters },
         }
-      : { ...EMPTY, strategy: strategies[0]?.id || '', dataSource: dataSources[0]?.name || '' })
+      : { ...EMPTY, strategy: strategies[0]?.id || '', dataSource: dataSources[0]?.name || '' }
+    setForm(initial)
+    setFormBaseline(JSON.stringify(initial))
 
+    // A default filled in by the app is not an edit, so the baseline follows it.
     loadDataSources().then((sources) => {
       if (company || !sources.length) return
-      setForm((f) => (f && !f.dataSource ? { ...f, dataSource: sources[0].name } : f))
+      setForm((f) => {
+        if (!f || f.dataSource) return f
+        const filled = { ...f, dataSource: sources[0].name }
+        setFormBaseline(JSON.stringify(filled))
+        return filled
+      })
     })
   }
 
@@ -159,8 +171,11 @@ function Companies() {
     )
   }
 
+  const dirty = form !== null && JSON.stringify(form) !== formBaseline
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
+      <UnsavedChangesGuard when={dirty} onSave={save} />
       <div className="flex items-start justify-between mb-6">
         <div>
           <h2 className="font-serif text-2xl font-semibold text-gray-100">Companies</h2>

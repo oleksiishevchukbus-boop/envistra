@@ -408,6 +408,9 @@ read-only there: the backend fixes it at startup and lists runs from it. Because
 can change between runs, the results page lists and serves images of every supported
 format by each file's own extension, not one format fixed at startup.
 
+`model_history.csv` has a `Year` column beside `Step` (`start year + step - 1`, the charts'
+mapping); only the file gains it, the in-memory history is unchanged.
+
 `format` may be one format or a list (`["png", "pdf"]`); every chart is then saved once per
 format, and a single string still resolves to a one-item list. The results page shows one
 entry per chart: it previews the first browser-viewable copy (`PlotBuilder.PREVIEW_ORDER`,
@@ -503,6 +506,12 @@ which is why the launcher can move the API port and the proxy still follows.
   `DataReader.Read`. A copied-and-renamed workbook is a new source, and a new folder a new
   industry. A filename in two folders is a conflict: flagged in the UI (banner, table,
   form) and rejected by `DataReader.Read`.
+- **Unsaved edits are guarded.** Environment, Settings, a strategy in edit mode and the
+  company dialog each compare their form with the last loaded/saved copy; while they
+  differ, `components/UnsavedChangesGuard.jsx` intercepts in-app navigation (React
+  Router's `useBlocker`) with Stay / Discard and leave / Save and leave, and reload or
+  tab close raises the browser's own prompt. `useBlocker` needs a data router, so
+  `main.jsx` uses `createBrowserRouter` with one catch-all route around App's `<Routes>`.
 - **A company's colour is set in its form**: a picker plus hex field, or "Automatic",
   which clears `color` so the loader assigns one. `PUT /api/companies/{name}` therefore
   treats an explicit `"color": null` as "clear"; every other null field means "unchanged".

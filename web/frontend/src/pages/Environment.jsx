@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
+import UnsavedChangesGuard from '../components/UnsavedChangesGuard'
 
 function Environment() {
   const [config, setConfig] = useState(null)
+  // The config as last loaded or saved; differing from it means unsaved edits.
+  const [savedConfig, setSavedConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -18,6 +21,7 @@ function Environment() {
       setLoading(true)
       const data = await api.getEnvironment()
       setConfig(data)
+      setSavedConfig(JSON.stringify(data))
       setError(null)
     } catch (err) {
       setError(err.message)
@@ -32,10 +36,13 @@ function Environment() {
       setError(null)
       setSuccess(null)
       await api.updateEnvironment(config)
+      setSavedConfig(JSON.stringify(config))
       setSuccess('Configuration saved successfully')
       setTimeout(() => setSuccess(null), 3000)
+      return true
     } catch (err) {
       setError(err.message)
+      return false
     } finally {
       setSaving(false)
     }
@@ -126,8 +133,11 @@ function Environment() {
     )
   }
 
+  const dirty = config !== null && JSON.stringify(config) !== savedConfig
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
+      <UnsavedChangesGuard when={dirty} onSave={handleSave} />
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

@@ -25,6 +25,7 @@ import pandas as pd  # noqa: E402
 from sklearn import metrics  # noqa: E402
 
 from envistra.config.Enums import CompanyAgentFields  # noqa: E402
+from envistra.config.GlobalConfig import GlobalConfig  # noqa: E402
 
 #: Used for the "real data" series in model-vs-source charts.
 SOURCE_COLOR = "#DF4E4E"
@@ -55,7 +56,7 @@ class PlotBuilder:
         self,
         model_history: pd.DataFrame,
         companies: list,
-        start_year: int = 2010,
+        start_year: Optional[int] = None,
         plots: Optional[dict] = None,
         base_name: str = "Plot",
         figsize: Optional[tuple] = None,
@@ -66,7 +67,9 @@ class PlotBuilder:
         plots = plots or {}
         self.model_history = model_history
         self.companies = companies
-        self.start_year = start_year
+        #: Step 1 is this year. Defaults to the data's start year, the one row
+        #: that seeds each agent, so charts and the CSV agree with the model.
+        self.start_year = start_year if start_year is not None else GlobalConfig.Startup.Year
         self.figsize = tuple(figsize or plots.get("figsize", (12, 5)))
         self.dpi = dpi or plots.get("dpi", 600)
         formats = image_format or plots.get("format", "jpg")
@@ -291,7 +294,15 @@ class PlotBuilder:
         return path
 
     def save_model_history(self, filename: str = "model_history.csv") -> str:
-        """The full history for every agent, not only the plotted subset."""
+        """The full history for every agent, not only the plotted subset.
+
+        Adds a Year column beside Step, using the same step-to-year mapping as
+        the charts. Only the file gains it; the in-memory history is unchanged.
+        """
         path = os.path.join(self.output_folder, filename)
-        self.model_history.to_csv(path)
+        history = self.model_history.reset_index()
+        history["Step"] = history["Step"].astype(int)
+        history.insert(history.columns.get_loc("Step") + 1, "Year",
+                       self.start_year + history["Step"] - 1)
+        history.to_csv(path, index=False)
         return path
