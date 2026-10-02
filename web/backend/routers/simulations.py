@@ -11,6 +11,7 @@ from ..models import (
     SimulationInfo,
     SimulationListResponse,
     SimulationStatus,
+    SimulationUpdateRequest,
 )
 from ..config import IMAGE_MEDIA_TYPES
 from ..services import results_manager
@@ -72,12 +73,33 @@ async def get_simulation(run_id: str):
     return sim_info
 
 
+def _run_errors(run_id, action):
+    """Map the results manager's exceptions onto HTTP statuses."""
+    try:
+        return action()
+    except results_manager.RunNotFound:
+        raise HTTPException(status_code=404, detail=f"Simulation '{run_id}' not found")
+    except results_manager.RunConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except results_manager.InvalidRunName as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.patch("/{run_id}", response_model=SimulationInfo)
+async def update_simulation(run_id: str, request: SimulationUpdateRequest):
+    """Rename a run (its folder too, keeping the timestamp) and/or set favourite.
+
+    The response's `run_id` is the new folder name after a rename.
+    """
+    changes = request.model_dump(exclude_unset=True)
+    return _run_errors(run_id, lambda: results_manager.update_simulation(
+        run_id, name=changes.get("name"), favorite=changes.get("favorite")))
+
+
 @router.delete("/{run_id}")
 async def delete_simulation(run_id: str):
-    """Delete a simulation run."""
-    if not results_manager.delete_simulation(run_id):
-        raise HTTPException(status_code=404, detail=f"Simulation '{run_id}' not found or could not be deleted")
-
+    """Delete a simulation run. Refused (409) while it is still in progress."""
+    _run_errors(run_id, lambda: results_manager.delete_simulation(run_id))
     return {"message": f"Simulation '{run_id}' deleted successfully"}
 
 

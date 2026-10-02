@@ -15,6 +15,7 @@ from envistra.utilities.PlotBuilder import PlotBuilder
 from envistra.utilities.PlotSuite import TOTAL_PLOTS, run_plot_suite
 
 from ..config import RESULTS_FOLDER
+from .results_manager import IN_PROGRESS_MARKER
 
 
 class SimulationRunner:
@@ -69,7 +70,14 @@ class SimulationRunner:
                 "progress": round(50 + done / total * 50, 1),
             })
 
-        run_plot_suite(plotter, steps=steps, on_plot=on_plot, seed=seed)
+        # The folder exists from here on; mark it so it cannot be renamed or
+        # deleted while charts are still being written into it.
+        marker = Path(plotter.output_folder) / IN_PROGRESS_MARKER
+        marker.touch()
+        try:
+            run_plot_suite(plotter, steps=steps, on_plot=on_plot, seed=seed)
+        finally:
+            marker.unlink(missing_ok=True)
         return _folder_name(plotter)
 
     async def run_strategy_comparison(self, steps: int, seed=None, progress_callback=None):

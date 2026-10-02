@@ -1,14 +1,87 @@
 """Manages scanning and organizing simulation results."""
 import json
 import os
+import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from envistra.utilities.PlotBuilder import PREVIEW_ORDER
+from envistra.utilities.PlotBuilder import PREVIEW_ORDER, slugify
 
 from ..config import IMAGE_MEDIA_TYPES, RESULTS_FOLDER
 from ..models import ImageInfo, SimulationInfo, SimulationStatus, SimulationType
+
+
+#: Present in a run folder while the runner is still writing into it. Such a
+#: run cannot be renamed or deleted.
+IN_PROGRESS_MARKER = ".in_progress"
+
+#: Per-run UI state that is not part of the reproducibility record, which
+#: stays in run_config.json untouched. Moves with the folder on rename.
+META_FILE = "run_meta.json"
+
+MAX_NAME_LENGTH = 80
+
+_URL_UNSAFE = re.compile(r"[#%&+;]")
+
+
+class RunNotFound(Exception):
+    pass
+
+
+class RunConflict(Exception):
+    """The run is in progress, or a rename target already exists."""
+
+
+class InvalidRunName(Exception):
+    pass
+
+
+def _run_folder(run_id: str) -> Optional[Path]:
+    """The run's folder, or None. `run_id` comes from the URL, so anything that
+    does not resolve to a direct child of the results folder is refused."""
+    try:
+        root = RESULTS_FOLDER.resolve()
+        folder = (RESULTS_FOLDER / run_id).resolve()
+    except OSError:
+        return None
+    if folder.parent != root or not folder.is_dir():
+        return None
+    return folder
+
+
+def split_run_id(run_id: str) -> tuple[str, str]:
+    """`("AES test", "_2026-10-03_00-31-14")` from `AES test_2026-10-03_00-31-14`.
+
+    A run folder is `<name>_<date>_<time>`. The name is what the UI shows and
+    what a rename replaces; the timestamp suffix is kept, so folder names stay
+    unique and the run's date survives. A folder without one is all name.
+    """
+    parts = run_id.rsplit("_", 2)
+    if len(parts) == 3:
+        try:
+            datetime.strptime(f"{parts[1]}_{parts[2]}", "%Y-%m-%d_%H-%M-%S")
+            return parts[0], f"_{parts[1]}_{parts[2]}"
+        except ValueError:
+            pass
+    return run_id, ""
+
+
+def _read_meta(folder: Path) -> dict:
+    try:
+        with open(folder / META_FILE, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _write_meta(folder: Path, meta: dict) -> None:
+    tmp = folder / (META_FILE + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(meta, fh, indent=2)
+    os.replace(tmp, folder / META_FILE)
 
 
 # Categories group the charts for the UI by matching on their titles, which
@@ -134,10 +207,13 @@ def scan_simulation_folder(folder_path: Path) -> SimulationInfo:
             pass
 
     created_at = parse_run_id_timestamp(run_id)
+    in_progress = (folder_path / IN_PROGRESS_MARKER).exists()
 
     return SimulationInfo(
         run_id=run_id,
-        status=SimulationStatus.COMPLETED,
+        name=split_run_id(run_id)[0],
+        favorite=bool(_read_meta(folder_path).get("favorite", False)),
+        status=SimulationStatus.RUNNING if in_progress else SimulationStatus.COMPLETED,
         simulation_type=get_simulation_type_from_run_id(run_id),
         steps=steps,
         start_year=2010,
@@ -166,20 +242,17 @@ def list_all_simulations() -> list[SimulationInfo]:
                 # Skip folders that can't be parsed
                 continue
 
-    # Sort by creation date, newest first
+    # Favourites first, then newest first within each group.
     simulations.sort(key=lambda x: x.created_at, reverse=True)
+    simulations.sort(key=lambda x: not x.favorite)
 
     return simulations
 
 
 def get_simulation(run_id: str) -> Optional[SimulationInfo]:
     """Get info for a specific simulation."""
-    folder_path = RESULTS_FOLDER / run_id
-
-    if not folder_path.exists() or not folder_path.is_dir():
-        return None
-
-    return scan_simulation_folder(folder_path)
+    folder_path = _run_folder(run_id)
+    return scan_simulation_folder(folder_path) if folder_path else None
 
 
 def get_image_path(run_id: str, image_name: str) -> Optional[Path]:
@@ -188,10 +261,12 @@ def get_image_path(run_id: str, image_name: str) -> Optional[Path]:
     `run_id` and `image_name` arrive from the URL, so the resolved path is
     checked to be inside the results folder before it is served.
     """
+    folder = _run_folder(run_id)
+    if folder is None:
+        return None
     try:
-        folder = (RESULTS_FOLDER / run_id).resolve()
         image_path = (folder / image_name).resolve()
-        image_path.relative_to(RESULTS_FOLDER.resolve())
+        image_path.relative_to(folder)
     except (ValueError, OSError):
         return None
 
@@ -200,27 +275,65 @@ def get_image_path(run_id: str, image_name: str) -> Optional[Path]:
 
 def get_config_path(run_id: str) -> Optional[Path]:
     """Get the path to the run config JSON."""
-    path = RESULTS_FOLDER / run_id / "run_config.json"
-    return path if path.exists() else None
+    folder = _run_folder(run_id)
+    path = folder / "run_config.json" if folder else None
+    return path if path and path.exists() else None
 
 
 def get_history_path(run_id: str) -> Optional[Path]:
     """Get the path to the model history CSV."""
-    path = RESULTS_FOLDER / run_id / "model_history.csv"
-    return path if path.exists() else None
+    folder = _run_folder(run_id)
+    path = folder / "model_history.csv" if folder else None
+    return path if path and path.exists() else None
 
 
-def delete_simulation(run_id: str) -> bool:
-    """Delete a simulation folder."""
-    import shutil
-
-    folder_path = RESULTS_FOLDER / run_id
-
-    if not folder_path.exists():
-        return False
-
+def delete_simulation(run_id: str) -> None:
+    """Delete a run's folder. Refused while the run is still being written."""
+    folder = _run_folder(run_id)
+    if folder is None:
+        raise RunNotFound(run_id)
+    if (folder / IN_PROGRESS_MARKER).exists():
+        raise RunConflict("this run is still in progress")
     try:
-        shutil.rmtree(folder_path)
-        return True
-    except Exception:
-        return False
+        shutil.rmtree(folder)
+    except OSError as exc:
+        raise RunConflict(f"could not delete the folder — is a file in it open? ({exc})")
+
+
+def update_simulation(run_id: str, name: Optional[str] = None,
+                      favorite: Optional[bool] = None) -> SimulationInfo:
+    """Set the favourite flag and/or rename the run, folder included.
+
+    A rename keeps the timestamp suffix: `AES test_2026-10-03_00-31-14`. The
+    name goes through the same Windows-safe slug as chart filenames. Returns the
+    run as it is afterwards — its `run_id` is new if it was renamed.
+    """
+    folder = _run_folder(run_id)
+    if folder is None:
+        raise RunNotFound(run_id)
+    if (folder / IN_PROGRESS_MARKER).exists():
+        raise RunConflict("this run is still in progress")
+
+    target = folder
+    if name is not None:
+        # Windows-safe like chart filenames, and URL-safe too: the folder name
+        # is the run's id in every /api/simulations/<id>/... address.
+        cleaned = _URL_UNSAFE.sub("-", slugify(name.strip()))
+        if not any(ch.isalnum() for ch in name):
+            raise InvalidRunName("a run name needs at least one letter or digit")
+        if len(cleaned) > MAX_NAME_LENGTH:
+            raise InvalidRunName(f"a run name is at most {MAX_NAME_LENGTH} characters")
+        target = folder.parent / (cleaned + split_run_id(folder.name)[1])
+
+    if favorite is not None:
+        _write_meta(folder, {**_read_meta(folder), "favorite": favorite})
+
+    if target != folder:
+        if target.exists():
+            raise RunConflict(f"a run named '{target.name}' already exists")
+        try:
+            folder.rename(target)
+        except OSError as exc:
+            raise RunConflict(f"could not rename the folder — is a file in it open? ({exc})")
+
+    return scan_simulation_folder(target)

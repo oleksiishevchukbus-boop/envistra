@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import RunName from '../components/RunName'
 
 const CATEGORY_ORDER = ['basics', 'pollution', 'quota', 'quota_trade', 'ratios', 'efficiency', 'other']
 
@@ -26,6 +27,7 @@ const CATEGORY_COLORS = {
 
 function SimulationResults() {
   const { runId } = useParams()
+  const navigate = useNavigate()
   const [simulation, setSimulation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -118,8 +120,19 @@ function SimulationResults() {
 
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            <h1 className="font-serif text-2xl font-semibold text-gray-100 mb-2">
-              {runId.split('_').slice(0, 1).join(' ')}
+            <h1 className="mb-2">
+              <RunName
+                run={simulation}
+                size="lg"
+                revealOnHover={false}
+                onUpdated={(updated) => {
+                  setSimulation(updated)
+                  // A rename moves the run to a new folder, so a new address.
+                  if (updated.run_id !== runId) {
+                    navigate(`/simulations/${encodeURIComponent(updated.run_id)}`, { replace: true })
+                  }
+                }}
+              />
             </h1>
             <p className="font-mono text-sm text-gray-500">
               {formatDate(simulation.created_at)}

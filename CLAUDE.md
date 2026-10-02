@@ -506,6 +506,13 @@ which is why the launcher can move the API port and the proxy still follows.
   `DataReader.Read`. A copied-and-renamed workbook is a new source, and a new folder a new
   industry. A filename in two folders is a conflict: flagged in the UI (banner, table,
   form) and rejected by `DataReader.Read`.
+- **Runs can be renamed, favourited, and deleted only after confirmation.** A run's id is
+  its folder name, `<name>_<YYYY-MM-DD>_<HH-MM-SS>`; renaming (`PATCH /api/simulations/{id}`)
+  renames the folder and keeps the timestamp suffix, so names stay unique and the date
+  survives, and the UI shows the part before the suffix. Names are slugged Windows- and
+  URL-safe. The favourite flag is in the run's `run_meta.json` (never in `run_config.json`,
+  the reproducibility record); favourites are listed first. While the web runner writes a
+  run's charts it keeps an `.in_progress` marker in the folder, and rename/delete answer 409.
 - **Unsaved edits are guarded.** Environment, Settings, a strategy in edit mode and the
   company dialog each compare their form with the last loaded/saved copy; while they
   differ, `components/UnsavedChangesGuard.jsx` intercepts in-app navigation (React

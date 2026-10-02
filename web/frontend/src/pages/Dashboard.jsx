@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useSimulationWebSocket } from '../api/websocket'
+import ConfirmDialog from '../components/ConfirmDialog'
+import RunName from '../components/RunName'
 
 function Dashboard() {
   const navigate = useNavigate()
@@ -13,6 +15,10 @@ function Dashboard() {
   const [strategies, setStrategies] = useState([])
   const [companies, setCompanies] = useState(null)
   const [seed, setSeed] = useState('')
+  // The run awaiting delete confirmation, and the error from the last attempt.
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   const { progress, status, plots, actualRunId } = useSimulationWebSocket(activeRunId)
 
@@ -59,13 +65,26 @@ function Dashboard() {
     }
   }
 
-  const handleDeleteSimulation = async (e, runId) => {
-    e.stopPropagation()
+  // Favourites first, then newest first — the order the backend lists in.
+  const sortRuns = (runs) => [...runs].sort((a, b) =>
+    (b.favorite - a.favorite) || (new Date(b.created_at) - new Date(a.created_at)))
+
+  // A rename changes the run's id (its folder name), so match on the old one.
+  const handleRunUpdated = (oldId, updated) => {
+    setSimulations(prev => sortRuns(prev.map(s => (s.run_id === oldId ? updated : s))))
+  }
+
+  const confirmDelete = async () => {
+    setDeleting(true)
+    setDeleteError(null)
     try {
-      await api.deleteSimulation(runId)
-      setSimulations(prev => prev.filter(s => s.run_id !== runId))
+      await api.deleteSimulation(pendingDelete.run_id)
+      setSimulations(prev => prev.filter(s => s.run_id !== pendingDelete.run_id))
+      setPendingDelete(null)
     } catch (error) {
-      console.error('Failed to delete simulation:', error)
+      setDeleteError(error.message)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -95,6 +114,29 @@ function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete run?"
+        confirmLabel="Delete"
+        danger
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => { setPendingDelete(null); setDeleteError(null) }}
+      >
+        {pendingDelete && (
+          <>
+            <p>
+              Delete <span className="text-gray-200">{pendingDelete.name}</span> from{' '}
+              {formatDate(pendingDelete.created_at)}?
+            </p>
+            <p>Its charts, model_history.csv and run_config.json are removed permanently.</p>
+            {pendingDelete.favorite && (
+              <p className="text-amber-300">It is marked as a favourite.</p>
+            )}
+            {deleteError && <p className="text-red-400">{deleteError}</p>}
+          </>
+        )}
+      </ConfirmDialog>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Simulation Launcher */}
         <div className="lg:col-span-2">
@@ -322,17 +364,20 @@ function Dashboard() {
                 ) : (
                   <div className="space-y-2">
                     {simulations.map((sim, index) => (
-                      <button
+                      <div
                         key={sim.run_id}
-                        onClick={() => navigate(`/simulations/${sim.run_id}`)}
-                        className="w-full text-left p-3 rounded bg-navy-950/50 border border-primary-900/30 hover:border-primary-700/50 hover:bg-navy-900/50 transition-all group"
+                        role="link"
+                        tabIndex={0}
+                        onClick={() => navigate(`/simulations/${encodeURIComponent(sim.run_id)}`)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) navigate(`/simulations/${encodeURIComponent(sim.run_id)}`) }}
+                        className={`w-full text-left p-3 rounded bg-navy-950/50 border hover:bg-navy-900/50 transition-all group cursor-pointer ${
+                          sim.favorite ? 'border-amber-500/30 hover:border-amber-400/50' : 'border-primary-900/30 hover:border-primary-700/50'
+                        }`}
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm font-mono text-gray-300 truncate group-hover:text-eco-400 transition-colors">
-                              {sim.run_id.split('_').slice(0, 1).join('_')}
-                            </div>
+                            <RunName run={sim} onUpdated={(updated) => handleRunUpdated(sim.run_id, updated)} />
                             <div className="text-[10px] font-mono text-gray-600 mt-1">
                               {formatDate(sim.created_at)}
                             </div>
@@ -349,8 +394,10 @@ function Dashboard() {
                               'bg-gray-600'
                             }`} />
                             <button
-                              onClick={(e) => handleDeleteSimulation(e, sim.run_id)}
-                              className="p-1 text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                              onClick={(e) => { e.stopPropagation(); setDeleteError(null); setPendingDelete(sim) }}
+                              disabled={sim.status === 'running'}
+                              title={sim.status === 'running' ? 'Cannot delete a run in progress' : 'Delete run'}
+                              className="p-1 text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-0"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -358,7 +405,7 @@ function Dashboard() {
                             </button>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}

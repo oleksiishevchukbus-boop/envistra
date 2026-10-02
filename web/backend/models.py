@@ -44,7 +44,12 @@ class ImageInfo(BaseModel):
 
 
 class SimulationInfo(BaseModel):
+    #: The folder name under results/ — `<name>_<date>_<time>`.
     run_id: str
+    #: The folder name without its timestamp suffix; a rename replaces it.
+    name: str = ""
+    #: Listed first. Stored in the run's run_meta.json.
+    favorite: bool = False
     status: SimulationStatus
     simulation_type: SimulationType
     steps: Optional[int] = None
@@ -55,6 +60,12 @@ class SimulationInfo(BaseModel):
     images: list[ImageInfo] = []
     config_available: bool = False
     history_available: bool = False
+
+
+class SimulationUpdateRequest(BaseModel):
+    #: Renames the run's folder, keeping its timestamp suffix.
+    name: Optional[str] = Field(default=None, max_length=200)
+    favorite: Optional[bool] = None
 
 
 class SimulationListResponse(BaseModel):

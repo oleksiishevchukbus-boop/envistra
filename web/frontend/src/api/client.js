@@ -42,6 +42,15 @@ class ApiClient {
     });
   }
 
+  // Rename (renames the results folder, keeping its timestamp) and/or set the
+  // favourite flag. The returned run carries the new run_id after a rename.
+  async updateSimulation(runId, data) {
+    return this.request(`/simulations/${encodeURIComponent(runId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteSimulation(runId) {
     return this.request(`/simulations/${runId}`, {
       method: 'DELETE',
