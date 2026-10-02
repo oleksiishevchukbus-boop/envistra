@@ -12,6 +12,8 @@ const EMPTY = {
   strategy: '',
   enabled: true,
   plot: false,
+  // null means automatic: the loader assigns a distinct hue.
+  color: null,
   parameters: { finEffCoef: 1.0, ecoEffCoef: 1.4, finEffInvest: 1.0, ecoEffInvest: 1.0 },
 }
 
@@ -96,6 +98,7 @@ function Companies() {
   }
 
   const save = async () => {
+    // `color: null` is sent on purpose: on an update it clears a stored colour.
     const payload = {
       ...form,
       parameters: Object.fromEntries(
@@ -126,6 +129,7 @@ function Companies() {
           strategy: company.strategy,
           enabled: company.enabled,
           plot: company.plot,
+          color: company.color ?? null,
           parameters: { ...company.parameters },
         }
       : { ...EMPTY, strategy: strategies[0]?.id || '', dataSource: dataSources[0]?.name || '' })
@@ -333,6 +337,17 @@ function Companies() {
               </select>
             </Field>
 
+            <Field
+              label="Colour"
+              hint="The company's line in every chart. Automatic picks a distinct hue, which can shift when companies are added or removed."
+            >
+              <ColorPicker
+                value={form.color}
+                fallback={companies.find((c) => c.name === editing)?.effectiveColor}
+                onChange={(v) => setForm({ ...form, color: v })}
+              />
+            </Field>
+
             <div className="grid grid-cols-2 gap-4">
               {PARAMETERS.map(([key, label]) => (
                 <Field key={key} label={label}>
@@ -426,6 +441,45 @@ function DataSourceSelect({ value, sources, companies, editing, missing, onChang
         </optgroup>
       ))}
     </select>
+  )
+}
+
+// `value` is the stored colour, or null for automatic. While automatic, the
+// swatch shows `fallback` — the hue the loader assigned — so switching to a
+// fixed colour starts from what the company is drawn in now.
+function ColorPicker({ value, fallback, onChange }) {
+  const auto = value === null
+  const shown = value ?? fallback ?? '#888888'
+  const [text, setText] = useState(shown)
+  useEffect(() => { setText(shown) }, [shown])
+
+  const commitText = (t) => {
+    setText(t)
+    if (/^#[0-9A-Fa-f]{6}$/.test(t)) onChange(t.toUpperCase())
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="color"
+        value={shown}
+        disabled={auto}
+        onChange={(e) => onChange(e.target.value.toUpperCase())}
+        className="w-10 h-9 p-0.5 bg-navy-800 border border-primary-800/50 rounded cursor-pointer disabled:opacity-50 disabled:cursor-default"
+      />
+      <input
+        value={text}
+        disabled={auto}
+        onChange={(e) => commitText(e.target.value.trim())}
+        maxLength={7}
+        className={`${inputClass} w-32 disabled:opacity-50`}
+      />
+      <Checkbox
+        label="Automatic"
+        checked={auto}
+        onChange={(v) => onChange(v ? null : shown.toUpperCase())}
+      />
+    </div>
   )
 }
 

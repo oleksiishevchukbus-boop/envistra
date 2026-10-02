@@ -7,7 +7,8 @@ import envistra
 from envistra.config.Errors import ConfigError
 
 from .config import API_PREFIX, CORS_ORIGINS
-from .routers import companies, data_sources, environment, simulations, strategies, websocket
+from .routers import (companies, data_sources, environment, settings, simulations, strategies,
+                      websocket)
 
 app = FastAPI(
     # Imported rather than re-typed, so the program's identity has one source.
@@ -43,6 +44,7 @@ app.include_router(strategies.router, prefix=API_PREFIX)
 app.include_router(companies.router, prefix=API_PREFIX)
 app.include_router(data_sources.router, prefix=API_PREFIX)
 app.include_router(environment.router, prefix=API_PREFIX)
+app.include_router(settings.router, prefix=API_PREFIX)
 app.include_router(websocket.router)
 
 

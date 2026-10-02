@@ -158,3 +158,13 @@ def save_environment(data, path=None):
     path = Path(path) if path else Loader.config_dir() / "environment.json"
     Loader.parse_environment(path, data)  # raises ConfigError
     return _write_atomic(path, data)
+
+
+def save_simulation(data, path=None):
+    """Validate and write run-wide settings (`config/simulation.json`).
+
+    Read afresh by every run, so nothing needs applying after the write.
+    """
+    path = Path(path) if path else Loader.config_dir() / "simulation.json"
+    Loader.parse_simulation(path, data)  # raises ConfigError
+    return _write_atomic(path, data)

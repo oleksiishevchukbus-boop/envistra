@@ -12,7 +12,7 @@ from ..models import (
     SimulationListResponse,
     SimulationStatus,
 )
-from ..config import IMAGE_MEDIA_TYPE
+from ..config import IMAGE_MEDIA_TYPES
 from ..services import results_manager
 
 router = APIRouter(prefix="/simulations", tags=["simulations"])
@@ -89,7 +89,8 @@ async def get_image(run_id: str, image_name: str):
     if not image_path:
         raise HTTPException(status_code=404, detail=f"Image '{image_name}' not found")
 
-    return FileResponse(image_path, media_type=IMAGE_MEDIA_TYPE)
+    media_type = IMAGE_MEDIA_TYPES.get(image_path.suffix[1:].lower(), "application/octet-stream")
+    return FileResponse(image_path, media_type=media_type)
 
 
 @router.get("/{run_id}/config")

@@ -1,23 +1,43 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 
+// Run-wide settings from config/simulation.json — currently chart output. Every
+// run re-reads the file, so a saved change applies to the next simulation.
+// resultsFolder is shown but not editable: the backend lists runs from it and
+// fixes it at startup, so changing it here would hide every existing run.
+
+const DPI_PRESETS = [
+  [150, 'Draft'],
+  [300, 'Standard'],
+  [600, 'Print'],
+]
+
+// Every chart is saved once per ticked format. The results page previews the
+// first viewable one (png, jpg, svg) and links every copy for download.
+const FORMATS = [
+  ['jpg', 'JPG', 'small files'],
+  ['png', 'PNG', 'lossless, larger'],
+  ['svg', 'SVG', 'vector, scales without loss'],
+  ['pdf', 'PDF', 'vector, for documents'],
+]
+const ORDER = FORMATS.map(([f]) => f)
+
+const inputClass =
+  'w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm'
+
 function Settings() {
-  const [config, setConfig] = useState(null)
+  const [plots, setPlots] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [expandedSection, setExpandedSection] = useState('revenue')
 
-  useEffect(() => {
-    loadConfig()
-  }, [])
+  useEffect(() => { load() }, [])
 
-  const loadConfig = async () => {
+  const load = async () => {
     try {
       setLoading(true)
-      const data = await api.getEnvironment()
-      setConfig(data)
+      setPlots((await api.getSettings()).plots)
       setError(null)
     } catch (err) {
       setError(err.message)
@@ -26,14 +46,18 @@ function Settings() {
     }
   }
 
+  const flash = (message) => {
+    setSuccess(message)
+    setTimeout(() => setSuccess(null), 3000)
+  }
+
   const handleSave = async () => {
     try {
       setSaving(true)
       setError(null)
       setSuccess(null)
-      await api.updateEnvironment(config)
-      setSuccess('Configuration saved successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setPlots((await api.updateSettings({ plots })).plots)
+      flash('Settings saved — they apply to the next simulation run')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -41,98 +65,52 @@ function Settings() {
     }
   }
 
-  // Reload re-reads config/environment.json from disk, discarding unsaved edits.
-  // It replaces the old "Reset Defaults": there are no Python defaults any more,
-  // the JSON file is the only source.
   const handleReload = async () => {
-    if (!confirm('Reload configuration from disk? Unsaved changes will be lost.')) return
-
-    try {
-      setSaving(true)
-      setError(null)
-      await api.reloadEnvironment()
-      await loadConfig()
-      setSuccess('Configuration reloaded from disk')
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
-    }
+    if (!confirm('Reload settings from disk? Unsaved changes will be lost.')) return
+    await load()
+    flash('Settings reloaded from disk')
   }
 
-  const updateConfig = (section, key, value) => {
-    setConfig(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [key]: value
-      }
-    }))
-  }
-
-  const updatePenaltyTier = (index, key, value) => {
-    setConfig(prev => ({
-      ...prev,
-      quota_manager: {
-        ...prev.quota_manager,
-        penalty_tiers: prev.quota_manager.penalty_tiers.map((tier, i) =>
-          i === index ? { ...tier, [key]: value } : tier
-        )
-      }
-    }))
-  }
-
-  const addPenaltyTier = () => {
-    setConfig(prev => ({
-      ...prev,
-      quota_manager: {
-        ...prev.quota_manager,
-        penalty_tiers: [
-          ...prev.quota_manager.penalty_tiers.slice(0, -1),
-          { until_step: prev.quota_manager.penalty_tiers.length * 5, price: 3.0, description: 'New tier' },
-          prev.quota_manager.penalty_tiers[prev.quota_manager.penalty_tiers.length - 1]
-        ]
-      }
-    }))
-  }
-
-  const removePenaltyTier = (index) => {
-    if (config.quota_manager.penalty_tiers.length <= 1) return
-    setConfig(prev => ({
-      ...prev,
-      quota_manager: {
-        ...prev.quota_manager,
-        penalty_tiers: prev.quota_manager.penalty_tiers.filter((_, i) => i !== index)
-      }
-    }))
+  const set = (field, value) => setPlots({ ...plots, [field]: value })
+  const setSide = (i, value) => {
+    const figsize = [...plots.figsize]
+    figsize[i] = value
+    set('figsize', figsize)
   }
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
-        </div>
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-2 border-eco-400 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
-  if (!config) {
+  if (!plots) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="text-center py-20 text-red-400">Failed to load configuration</div>
+      <div className="max-w-4xl mx-auto px-6 py-8 text-sm font-mono text-red-400">
+        Could not load settings: {error}
       </div>
     )
   }
+
+  const [w, h] = plots.figsize.map(Number)
+  const dpi = Number(plots.dpi)
+  const formats = plots.format
+  const toggleFormat = (f) => set('format', formats.includes(f)
+    ? formats.filter((x) => x !== f)
+    : ORDER.filter((x) => x === f || formats.includes(x)))
+  const raster = formats.some((f) => f === 'jpg' || f === 'png')
+  const pixels = raster
+    ? `${w} × ${h} in at ${dpi} dpi = ${Math.round(w * dpi)} × ${Math.round(h * dpi)} px`
+    : `${w} × ${h} in, vector — dpi applies only to embedded raster parts`
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-mono font-semibold text-gray-100">Environment Settings</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure simulation environment parameters</p>
+          <h1 className="text-2xl font-mono font-semibold text-gray-100">Settings</h1>
+          <p className="text-sm text-gray-500 mt-1">Run-wide settings — config/simulation.json</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -152,9 +130,8 @@ function Settings() {
         </div>
       </div>
 
-      {/* Messages */}
       {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm font-mono">
+        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm font-mono whitespace-pre-wrap">
           {error}
           <button onClick={() => setError(null)} className="ml-4 underline">Dismiss</button>
         </div>
@@ -165,289 +142,112 @@ function Settings() {
         </div>
       )}
 
-      {/* Configuration Sections */}
-      <div className="space-y-4">
-        {/* Revenue Calculator */}
-        <div className="bg-navy-900/80 rounded-lg border border-primary-800/50 overflow-hidden">
-          <button
-            onClick={() => setExpandedSection(expandedSection === 'revenue' ? null : 'revenue')}
-            className="w-full flex items-center justify-between p-4 hover:bg-navy-800/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-fin-400" />
-              <h3 className="font-mono text-gray-200">Revenue Calculator</h3>
-            </div>
-            <svg
-              className={`w-5 h-5 text-gray-500 transition-transform ${expandedSection === 'revenue' ? 'rotate-180' : ''}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+      <div className="bg-navy-900/80 rounded-lg border border-primary-800/50 p-6 space-y-6">
+        <h2 className="font-mono text-gray-200">Chart output</h2>
 
-          {expandedSection === 'revenue' && (
-            <div className="p-6 border-t border-primary-800/50 bg-navy-950/50">
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Approach</label>
-                  <select
-                    value={config.revenue_calculator.approach}
-                    onChange={(e) => updateConfig('revenue_calculator', 'approach', e.target.value)}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                  >
-                    <option value="industry_based">Industry Based</option>
-                    <option value="competitive_industry_based">Competitive Industry Based</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Competition Influence</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={config.revenue_calculator.competition_influence}
-                    onChange={(e) => updateConfig('revenue_calculator', 'competition_influence', parseFloat(e.target.value))}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                  />
-                  <p className="text-[10px] text-gray-600 mt-1">0 = no effect, 1 = fully competitive</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Fin. Efficiency Impact Multiplier</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={config.revenue_calculator.fin_eff_impact_multiplier}
-                    onChange={(e) => updateConfig('revenue_calculator', 'fin_eff_impact_multiplier', parseFloat(e.target.value))}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+        <div className="space-y-2">
+          <label className="block text-xs font-mono uppercase tracking-wider text-gray-400">
+            Quality (dpi)
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            {DPI_PRESETS.map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => set('dpi', value)}
+                className={`px-3 py-2 text-sm font-mono rounded border transition-colors ${
+                  dpi === value
+                    ? 'bg-primary-400/10 border-primary-400/40 text-primary-300'
+                    : 'bg-navy-800 border-primary-800/50 text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {label} · {value}
+              </button>
+            ))}
+            <input
+              type="number"
+              min="10"
+              max="2400"
+              step="10"
+              value={plots.dpi}
+              onChange={(e) => set('dpi', e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+              className={`${inputClass} w-28`}
+              aria-label="Custom dpi"
+            />
+          </div>
+          <p className="text-[11px] font-mono text-gray-600">
+            Higher dpi gives sharper images but larger files and slower plotting. 10–2400.
+          </p>
         </div>
 
-        {/* Pollution Calculator */}
-        <div className="bg-navy-900/80 rounded-lg border border-primary-800/50 overflow-hidden">
-          <button
-            onClick={() => setExpandedSection(expandedSection === 'pollution' ? null : 'pollution')}
-            className="w-full flex items-center justify-between p-4 hover:bg-navy-800/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-eco-400" />
-              <h3 className="font-mono text-gray-200">Pollution Calculator</h3>
+        <div className="grid grid-cols-2 gap-4">
+          {['Width', 'Height'].map((label, i) => (
+            <div key={label} className="space-y-1">
+              <label className="block text-xs font-mono uppercase tracking-wider text-gray-400">
+                {label} (inches)
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="0.5"
+                value={plots.figsize[i]}
+                onChange={(e) => setSide(i, e.target.value === '' ? '' : parseFloat(e.target.value))}
+                className={inputClass}
+              />
             </div>
-            <svg
-              className={`w-5 h-5 text-gray-500 transition-transform ${expandedSection === 'pollution' ? 'rotate-180' : ''}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {expandedSection === 'pollution' && (
-            <div className="p-6 border-t border-primary-800/50 bg-navy-950/50">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Approach</label>
-                  <select
-                    value={config.pollution_calculator.approach}
-                    onChange={(e) => updateConfig('pollution_calculator', 'approach', e.target.value)}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                  >
-                    <option value="industry_based">Industry Based</option>
-                    <option value="company_based">Company Based</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Env. Efficiency Impact Multiplier</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={config.pollution_calculator.env_eff_impact_multiplier}
-                    onChange={(e) => updateConfig('pollution_calculator', 'env_eff_impact_multiplier', parseFloat(e.target.value))}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                  />
-                  <p className="text-[10px] text-gray-600 mt-1">At 1.0, eco-efficiency investments directly reduce pollution</p>
-                </div>
-              </div>
-            </div>
-          )}
+          ))}
         </div>
 
-        {/* Quota Manager */}
-        <div className="bg-navy-900/80 rounded-lg border border-primary-800/50 overflow-hidden">
-          <button
-            onClick={() => setExpandedSection(expandedSection === 'quota' ? null : 'quota')}
-            className="w-full flex items-center justify-between p-4 hover:bg-navy-800/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-primary-400" />
-              <h3 className="font-mono text-gray-200">Quota Manager</h3>
-            </div>
-            <svg
-              className={`w-5 h-5 text-gray-500 transition-transform ${expandedSection === 'quota' ? 'rotate-180' : ''}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {expandedSection === 'quota' && (
-            <div className="p-6 border-t border-primary-800/50 bg-navy-950/50 space-y-6">
-              {/* Basic params */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Approach</label>
-                  <select
-                    value={config.quota_manager.approach}
-                    onChange={(e) => updateConfig('quota_manager', 'approach', e.target.value)}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                  >
-                    <option value="expenses_based">Expenses Based</option>
-                    <option value="historical_pollution_based">Historical Pollution Based</option>
-                    <option value="improvement_rewarding">Improvement Rewarding</option>
-                    <option value="grandfathered_with_tightening">Grandfathered with Tightening</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Quota Cap Decreaser</label>
+        <div className="space-y-1">
+          <label className="block text-xs font-mono uppercase tracking-wider text-gray-400">Formats</label>
+          <div className="flex flex-wrap gap-2">
+            {FORMATS.map(([value, label, note]) => {
+              const on = formats.includes(value)
+              return (
+                <label
+                  key={value}
+                  className={`flex items-center gap-2 px-3 py-2 rounded border cursor-pointer text-sm font-mono transition-colors ${
+                    on
+                      ? 'bg-primary-400/10 border-primary-400/40 text-primary-300'
+                      : 'bg-navy-800 border-primary-800/50 text-gray-400 hover:text-gray-200'
+                  }`}
+                >
                   <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.005"
-                    value={config.quota_manager.quota_cap_decreaser}
-                    onChange={(e) => updateConfig('quota_manager', 'quota_cap_decreaser', parseFloat(e.target.value))}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggleFormat(value)}
+                    className="accent-eco-500"
                   />
-                  <p className="text-[10px] text-gray-600 mt-1">Cap is multiplied by this each year</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-gray-500 mb-1">Linear Reduction Factor</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.0025"
-                    value={config.quota_manager.linear_reduction_factor}
-                    onChange={(e) => updateConfig('quota_manager', 'linear_reduction_factor', parseFloat(e.target.value))}
-                    className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                  />
-                  <p className="text-[10px] text-gray-600 mt-1">Annual linear reduction in total cap</p>
-                </div>
-              </div>
+                  {label}
+                  <span className="text-[11px] text-gray-500">{note}</span>
+                </label>
+              )
+            })}
+          </div>
+          <p className={`text-[11px] font-mono ${formats.length ? 'text-gray-600' : 'text-red-400'}`}>
+            {formats.length === 0
+              ? 'Choose at least one format.'
+              : formats.length === 1 && formats[0] === 'pdf'
+                ? 'PDF only: the results page lists the charts to open or download, without inline previews.'
+                : 'Every chart is saved once per ticked format; each extra format adds plotting time.'}
+          </p>
+        </div>
 
-              {/* Approach-specific params */}
-              {config.quota_manager.approach === 'improvement_rewarding' && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-mono text-gray-500 mb-1">Reward Pool Share</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={config.quota_manager.reward_pool_share ?? 0.3}
-                      onChange={(e) => updateConfig('quota_manager', 'reward_pool_share', parseFloat(e.target.value))}
-                      className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                    />
-                    <p className="text-[10px] text-gray-600 mt-1">0 = all equal base, 1 = all reward-based</p>
-                  </div>
-                </div>
-              )}
+        <p className="text-sm font-mono text-gray-300 bg-navy-950/50 rounded px-3 py-2">{pixels}</p>
 
-              {config.quota_manager.approach === 'grandfathered_with_tightening' && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-mono text-gray-500 mb-1">Tightening Strength</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={config.quota_manager.tightening_strength ?? 0.5}
-                      onChange={(e) => updateConfig('quota_manager', 'tightening_strength', parseFloat(e.target.value))}
-                      className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                    />
-                    <p className="text-[10px] text-gray-600 mt-1">0 = no intensity adjustment, 1 = full adjustment</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Penalty Tiers */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-mono text-gray-400">Penalty Tiers</h4>
-                  <button
-                    onClick={addPenaltyTier}
-                    className="px-3 py-1 text-xs font-mono bg-navy-800 text-gray-300 rounded hover:bg-navy-700 transition-colors"
-                  >
-                    + Add Tier
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {config.quota_manager.penalty_tiers.map((tier, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 bg-navy-800/50 rounded">
-                      <div className="flex-1 grid grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-mono text-gray-600 mb-1">Until Step</label>
-                          <input
-                            type={tier.until_step === 'inf' ? 'text' : 'number'}
-                            value={tier.until_step}
-                            onChange={(e) => {
-                              const val = e.target.value === 'inf' ? 'inf' : parseInt(e.target.value) || 0
-                              updatePenaltyTier(index, 'until_step', val)
-                            }}
-                            className="w-full px-2 py-1 bg-navy-900 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-mono text-gray-600 mb-1">Price per Unit</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.25"
-                            value={tier.price}
-                            onChange={(e) => updatePenaltyTier(index, 'price', parseFloat(e.target.value))}
-                            className="w-full px-2 py-1 bg-navy-900 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-mono text-gray-600 mb-1">Description</label>
-                          <input
-                            type="text"
-                            value={tier.description}
-                            onChange={(e) => updatePenaltyTier(index, 'description', e.target.value)}
-                            className="w-full px-2 py-1 bg-navy-900 border border-primary-800/50 rounded text-gray-200 font-mono text-sm"
-                          />
-                        </div>
-                      </div>
-                      {config.quota_manager.penalty_tiers.length > 1 && (
-                        <button
-                          onClick={() => removePenaltyTier(index)}
-                          className="p-1 text-red-400 hover:text-red-300 transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+        <div className="space-y-1">
+          <label className="block text-xs font-mono uppercase tracking-wider text-gray-400">Results folder</label>
+          <input value={plots.resultsFolder} disabled className={`${inputClass} opacity-50`} />
+          <p className="text-[11px] font-mono text-gray-600">
+            Fixed while the server runs, because existing runs are listed from it. To change it,
+            edit config/simulation.json and restart.
+          </p>
         </div>
       </div>
 
-      {/* Info panel */}
       <div className="mt-8 p-4 bg-navy-900/40 rounded-lg border border-primary-800/30">
         <p className="text-xs font-mono text-gray-500">
-          Changes take effect on the next simulation run. Environment settings control how revenue, pollution, and quota penalties are calculated for all agents.
+          Changes apply to the next simulation run. Charts of earlier runs keep the quality and
+          format they were made with.
         </p>
       </div>
     </div>

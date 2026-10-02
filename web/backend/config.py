@@ -18,16 +18,15 @@ if not RESULTS_FOLDER.is_absolute():
     RESULTS_FOLDER = PROJECT_ROOT / RESULTS_FOLDER
 RESULTS_FOLDER.mkdir(parents=True, exist_ok=True)
 
-#: The chart format the simulation writes. The predecessor hardcoded jpg in two
-#: places, which broke silently if the format changed.
-IMAGE_FORMAT = _plots["format"]
+#: Every chart format a run may write, by extension. The format is a setting the
+#: UI can change between runs, so results are listed and served by each file's
+#: own extension rather than by one format fixed at startup.
 IMAGE_MEDIA_TYPES = {
     "jpg": "image/jpeg",
     "png": "image/png",
     "svg": "image/svg+xml",
     "pdf": "application/pdf",
 }
-IMAGE_MEDIA_TYPE = IMAGE_MEDIA_TYPES.get(IMAGE_FORMAT, "application/octet-stream")
 
 API_PREFIX = "/api"
 CORS_ORIGINS = [

@@ -106,6 +106,29 @@ def _number(path, field, value, low=None, high=None):
     return value
 
 
+#: Shares are typed by hand as decimals, so 0.7 + 0.3 must not fail on rounding.
+_SHARE_TOLERANCE = 1e-6
+
+
+def _shares(path, context, data, keys):
+    """A split of one whole: each share in [0, 1] and together exactly 1.
+
+    Used for the investment split (financial / ecological) and the expenses
+    feature weights. A sum above 1 invests more than the budget or overstates
+    the response; below 1 silently leaves part of it out.
+    """
+    for key in keys:
+        _number(path, f"{context}.{key}", data[key], 0, 1)
+    total = sum(data[key] for key in keys)
+    if abs(total - 1) > _SHARE_TOLERANCE:
+        raise ConfigError(
+            path,
+            f"{' + '.join(keys)} must sum to 1, got {round(total, 6)}\n"
+            f"  they split one whole, e.g. 0.7 / 0.3",
+            field=f"{context}.{keys[0]}",
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Environment
 # --------------------------------------------------------------------------- #
@@ -268,6 +291,8 @@ def _build_strategy(path, data):
                optional=("smoothingAlpha",), context="estimators.expenses")
     check_keys(path, e["featuresImpact"], ("netRevenue", "quotaExceedance"),
                context="estimators.expenses.featuresImpact")
+    _shares(path, "estimators.expenses.featuresImpact", e["featuresImpact"],
+            ("netRevenue", "quotaExceedance"))
     expenses = ExpensesEstimatorConfig(
         approach=_approach(path, "expenses", e, "estimators.expenses"),
         changeThreshold_Upper=_number(path, "estimators.expenses.changeThreshold_Upper", e["changeThreshold_Upper"]),
@@ -287,6 +312,8 @@ def _build_strategy(path, data):
     check_keys(path, i["investmentRatios"],
                ("revenueToInvestmentRatio", "minimalInvestment", "finInvestment", "ecoInvestment"),
                context="estimators.investment.investmentRatios")
+    _shares(path, "estimators.investment.investmentRatios", i["investmentRatios"],
+            ("finInvestment", "ecoInvestment"))
     investment = InvestmentEstimatorConfig(
         approach=_approach(path, "investment", i, "estimators.investment"),
         investmentRatios=i["investmentRatios"],
@@ -514,6 +541,10 @@ def verify_data_links(companies, available_names):
 
 DEFAULT_PLOTS = {"dpi": 600, "figsize": [12, 5], "format": "jpg", "resultsFolder": "results"}
 
+#: Chart formats a run can write. Browsers show the first three as images; a
+#: PDF can be opened or downloaded but not embedded as one.
+PLOT_FORMATS = ("jpg", "png", "svg", "pdf")
+
 
 def load_simulation(path=None):
     """Read config/simulation.json — run-wide settings such as plot output.
@@ -522,7 +553,15 @@ def load_simulation(path=None):
     these are presentation settings, so a missing file is not an error.
     """
     path = Path(path) if path else config_dir() / "simulation.json"
-    data = _read(path) if path.is_file() else {}
+    return parse_simulation(path, _read(path) if path.is_file() else {})
+
+
+def parse_simulation(path, data):
+    """Validate a simulation document and return it resolved over the defaults.
+
+    Separate from reading, as with the environment, so the API can validate a
+    submitted document before anything is written.
+    """
     check_keys(path, data, required=(), optional=("plots",))
 
     plots = dict(DEFAULT_PLOTS)
@@ -535,9 +574,21 @@ def load_simulation(path=None):
         raise bad_value(path, "plots.figsize", plots["figsize"], "a [width, height] pair")
     for i, side in enumerate(plots["figsize"]):
         _number(path, f"plots.figsize[{i}]", side, 1)
-    if plots["format"] not in ("jpg", "png", "svg", "pdf"):
-        raise bad_value(path, "plots.format", plots["format"], "jpg | png | svg | pdf")
+    # One format or several: every chart is saved once per format. A single
+    # string is still accepted, so older files stay valid; it resolves to a list.
+    formats = plots["format"]
+    if isinstance(formats, str):
+        formats = [formats]
+    if not (isinstance(formats, list) and formats):
+        raise bad_value(path, "plots.format", plots["format"],
+                        'a format or a non-empty list of them, e.g. ["png", "pdf"]')
+    for f in formats:
+        if f not in PLOT_FORMATS:
+            raise bad_value(path, "plots.format", f, " | ".join(PLOT_FORMATS))
+    if len(set(formats)) != len(formats):
+        raise bad_value(path, "plots.format", formats, "each format at most once")
 
+    plots["format"] = formats
     plots["figsize"] = tuple(plots["figsize"])
     return {"plots": plots}
 

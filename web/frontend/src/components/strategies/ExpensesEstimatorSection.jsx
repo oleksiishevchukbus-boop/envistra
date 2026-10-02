@@ -1,3 +1,5 @@
+import SharePair from './SharePair'
+
 function ExpensesEstimatorSection({ estimators, disabled, onUpdateField }) {
   return (
     <div className="mb-4 bg-navy-900/60 border border-primary-800/30 rounded-lg p-4">
@@ -58,34 +60,14 @@ function ExpensesEstimatorSection({ estimators, disabled, onUpdateField }) {
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-mono text-gray-500 mb-1">Net Revenue Impact</label>
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            value={estimators?.expenses?.featuresImpact?.netRevenue ?? 0.5}
-            onChange={(e) => onUpdateField('estimators.expenses.featuresImpact.netRevenue', parseFloat(e.target.value))}
-            disabled={disabled}
-            className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm disabled:opacity-50"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-mono text-gray-500 mb-1">Quota Exceedance Impact</label>
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            value={estimators?.expenses?.featuresImpact?.quotaExceedance ?? 0.5}
-            onChange={(e) => onUpdateField('estimators.expenses.featuresImpact.quotaExceedance', parseFloat(e.target.value))}
-            disabled={disabled}
-            className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm disabled:opacity-50"
-          />
-        </div>
-      </div>
+      <SharePair
+        left={{ path: 'estimators.expenses.featuresImpact.netRevenue',
+                label: 'Net Revenue Impact', value: estimators?.expenses?.featuresImpact?.netRevenue }}
+        right={{ path: 'estimators.expenses.featuresImpact.quotaExceedance',
+                 label: 'Quota Exceedance Impact', value: estimators?.expenses?.featuresImpact?.quotaExceedance }}
+        disabled={disabled}
+        onUpdateField={onUpdateField}
+      />
     </div>
   )
 }

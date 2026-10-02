@@ -5,7 +5,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from ..config import IMAGE_FORMAT, RESULTS_FOLDER
+from envistra.utilities.PlotBuilder import PREVIEW_ORDER
+
+from ..config import IMAGE_MEDIA_TYPES, RESULTS_FOLDER
 from ..models import ImageInfo, SimulationInfo, SimulationStatus, SimulationType
 
 
@@ -88,15 +90,28 @@ def scan_simulation_folder(folder_path: Path) -> SimulationInfo:
     """Scan a simulation folder and return its info."""
     run_id = folder_path.name
 
-    # Get images
+    # One entry per chart, whatever formats it was written in: a run may save
+    # each chart several times (png + pdf, say), and the format setting may
+    # differ between runs. The entry previews the best browser-viewable copy
+    # and links every copy for download.
+    by_chart = {}
+    for f in folder_path.iterdir():
+        ext = f.suffix[1:].lower()
+        if f.is_file() and ext in IMAGE_MEDIA_TYPES:
+            by_chart.setdefault(f.stem, {})[ext] = f.name
+
     images = []
-    for img_file in folder_path.glob(f"*.{IMAGE_FORMAT}"):
-        category = get_image_category(img_file.name)
+    for stem, files in by_chart.items():
+        preview_ext = next(e for e in PREVIEW_ORDER if e in files)
+        preview = files[preview_ext]
         images.append(ImageInfo(
-            name=img_file.stem.replace("_", " "),
-            filename=img_file.name,
-            path=f"/api/simulations/{run_id}/images/{img_file.name}",
-            category=category
+            name=stem.replace("_", " "),
+            filename=preview,
+            path=f"/api/simulations/{run_id}/images/{preview}",
+            category=get_image_category(preview),
+            previewable=preview_ext != "pdf",
+            formats={ext: f"/api/simulations/{run_id}/images/{name}"
+                     for ext, name in sorted(files.items(), key=lambda kv: PREVIEW_ORDER.index(kv[0]))},
         ))
 
     # Sort images by category order

@@ -13,7 +13,12 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-      throw new Error(error.detail || `HTTP error ${response.status}`);
+      // FastAPI's own validation (422) sends a list of {loc, msg}; the loader's
+      // ConfigError (400) sends a string.
+      const detail = Array.isArray(error.detail)
+        ? error.detail.map((d) => `${(d.loc || []).slice(1).join('.')}: ${d.msg}`).join('\n')
+        : error.detail;
+      throw new Error(detail || `HTTP error ${response.status}`);
     }
 
     return response.json();
@@ -131,6 +136,18 @@ class ApiClient {
   // Empty when no workbooks are present.
   async listDataSources() {
     return this.request('/data-sources');
+  }
+
+  // Run-wide settings (config/simulation.json): chart dpi, size and format.
+  async getSettings() {
+    return this.request('/settings');
+  }
+
+  async updateSettings(data) {
+    return this.request('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
   // Environment

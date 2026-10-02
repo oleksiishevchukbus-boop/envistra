@@ -5,6 +5,7 @@ function Layout() {
   const isHome = location.pathname === '/'
   const isStrategies = location.pathname === '/strategies'
   const isCompanies = location.pathname === '/companies'
+  const isEnvironment = location.pathname === '/environment'
   const isSettings = location.pathname === '/settings'
   const isAbout = location.pathname === '/about'
 
@@ -85,6 +86,16 @@ function Layout() {
                 }`}
               >
                 Companies
+              </Link>
+              <Link
+                to="/environment"
+                className={`px-4 py-2 text-sm font-mono uppercase tracking-wider transition-all ${
+                  isEnvironment
+                    ? 'text-primary-400 bg-primary-400/10 border border-primary-400/30'
+                    : 'text-gray-400 hover:text-gray-200 border border-transparent hover:border-primary-800'
+                }`}
+              >
+                Environment
               </Link>
               <Link
                 to="/settings"

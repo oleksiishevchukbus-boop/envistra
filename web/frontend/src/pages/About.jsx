@@ -124,7 +124,7 @@ function About() {
         <VarRow
           name="config/environment.json"
           type="one file"
-          desc="The regulatory regime: how revenue and pollution are calculated, how quotas are allocated and tightened, and the escalating penalty schedule. Edit it on the Settings page."
+          desc="The regulatory regime: how revenue and pollution are calculated, how quotas are allocated and tightened, and the escalating penalty schedule. Edit it on the Environment page."
         />
         <VarRow
           name="config/strategies/<id>.json"

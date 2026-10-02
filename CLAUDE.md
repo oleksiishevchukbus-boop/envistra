@@ -189,7 +189,10 @@ unguarded `KeyError` when a name appeared in one but not the other is gone by co
 **Validation runs on the load path** (it ran nowhere in the predecessor). Unknown keys are
 an error with a spelling suggestion, missing required keys name the field, `approach`
 values are checked against the **implemented** sets only, and a dangling strategy
-reference lists the available ids. Adding a parameter means editing the config class and
+reference lists the available ids. Two pairs are shares of one whole and must each sum to
+exactly 1, every share within [0, 1]: `finInvestment` + `ecoInvestment`, and
+`featuresImpact.netRevenue` + `featuresImpact.quotaExceedance`. The strategy form
+enforces the same rule by setting the other share of a pair whenever one is edited. Adding a parameter means editing the config class and
 `Loader`; there is no separate serializer to keep in sync.
 
 ### Transfer order
@@ -399,6 +402,17 @@ regression test asserts it does *not* suffice.
 
 Settings live in `config/simulation.json` (`dpi`, `figsize`, `format`, `resultsFolder`);
 the default is 600 dpi. Each run writes a timestamped folder under `results/`.
+They are edited on the web UI's **Settings** page (`GET/PUT /api/settings`, written through
+`Writer.save_simulation`), and apply to the next run without a restart. `resultsFolder` is
+read-only there: the backend fixes it at startup and lists runs from it. Because the format
+can change between runs, the results page lists and serves images of every supported
+format by each file's own extension, not one format fixed at startup.
+
+`format` may be one format or a list (`["png", "pdf"]`); every chart is then saved once per
+format, and a single string still resolves to a one-item list. The results page shows one
+entry per chart: it previews the first browser-viewable copy (`PlotBuilder.PREVIEW_ORDER`,
+png → jpg → svg) and offers each copy for download. A PDF-only chart has no image preview;
+it is opened in an embedded viewer instead.
 
 ### Two independent company flags
 
@@ -489,6 +503,9 @@ which is why the launcher can move the API port and the proxy still follows.
   `DataReader.Read`. A copied-and-renamed workbook is a new source, and a new folder a new
   industry. A filename in two folders is a conflict: flagged in the UI (banner, table,
   form) and rejected by `DataReader.Read`.
+- **A company's colour is set in its form**: a picker plus hex field, or "Automatic",
+  which clears `color` so the loader assigns one. `PUT /api/companies/{name}` therefore
+  treats an explicit `"color": null` as "clear"; every other null field means "unchanged".
 - **The history's `Industry` values are folder names** (`hydro`, `solar`, …) rather than
   the EXIOBASE labels in the cells. The grouping is the same, so results are unchanged.
 - **The Dashboard's counts come from the API.** It used to say a hardcoded "4 agents";

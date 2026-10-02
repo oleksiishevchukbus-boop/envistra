@@ -207,17 +207,29 @@ function SimulationResults() {
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <div className="aspect-[12/5] bg-navy-950 overflow-hidden">
-                <img
-                  src={image.path}
-                  alt={image.name}
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
-                  loading="lazy"
-                />
+                {image.previewable === false ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500">
+                    <span className="px-2 py-1 text-xs font-mono border border-primary-800 rounded">PDF</span>
+                    <span className="text-[11px] font-mono">click to open</span>
+                  </div>
+                ) : (
+                  <img
+                    src={image.path}
+                    alt={image.name}
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                )}
               </div>
               <div className="p-4 border-t border-primary-800/50">
                 <h3 className="font-mono text-sm text-gray-300 group-hover:text-eco-400 transition-colors">
                   {image.name}
                 </h3>
+                {Object.keys(image.formats || {}).length > 1 && (
+                  <p className="mt-1 text-[10px] font-mono uppercase text-gray-600">
+                    {Object.keys(image.formats).join(' · ')}
+                  </p>
+                )}
               </div>
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-eco-400/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -246,22 +258,41 @@ function SimulationResults() {
             {/* Image */}
             <div className="bg-navy-900 rounded-lg border border-primary-800/50 overflow-hidden">
               <div className="bg-white">
-                <img
-                  src={lightboxImage.path}
-                  alt={lightboxImage.name}
-                  className="w-full h-auto"
-                />
+                {lightboxImage.previewable === false ? (
+                  <iframe
+                    src={lightboxImage.path}
+                    title={lightboxImage.name}
+                    className="w-full h-[70vh]"
+                  />
+                ) : (
+                  <img
+                    src={lightboxImage.path}
+                    alt={lightboxImage.name}
+                    className="w-full h-auto"
+                  />
+                )}
               </div>
               <div className="p-4 border-t border-primary-800/50 flex items-center justify-between">
                 <h3 className="font-mono text-gray-300">{lightboxImage.name}</h3>
-                <a
-                  href={lightboxImage.path}
-                  download={lightboxImage.filename}
-                  className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-gray-400 border border-primary-800 hover:border-eco-400/50 hover:text-eco-400 rounded transition-all"
-                  onClick={e => e.stopPropagation()}
-                >
-                  Download
-                </a>
+                {/* One link per format the chart was written in; older
+                    responses without `formats` fall back to the preview file. */}
+                <div className="flex gap-2">
+                  {Object.entries(
+                    lightboxImage.formats && Object.keys(lightboxImage.formats).length
+                      ? lightboxImage.formats
+                      : { [lightboxImage.filename.split('.').pop()]: lightboxImage.path }
+                  ).map(([ext, url]) => (
+                    <a
+                      key={ext}
+                      href={url}
+                      download={`${lightboxImage.name}.${ext}`}
+                      className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-gray-400 border border-primary-800 hover:border-eco-400/50 hover:text-eco-400 rounded transition-all"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {ext}
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
 

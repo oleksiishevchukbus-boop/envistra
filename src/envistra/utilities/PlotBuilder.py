@@ -30,6 +30,10 @@ from envistra.config.Enums import CompanyAgentFields  # noqa: E402
 SOURCE_COLOR = "#DF4E4E"
 MODEL_COLOR = "#4E6EDF"
 
+#: Which written format the web UI previews, best first. PDF is last: a browser
+#: cannot embed it as an image.
+PREVIEW_ORDER = ("png", "jpg", "svg", "pdf")
+
 _UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
@@ -65,7 +69,12 @@ class PlotBuilder:
         self.start_year = start_year
         self.figsize = tuple(figsize or plots.get("figsize", (12, 5)))
         self.dpi = dpi or plots.get("dpi", 600)
-        self.format = image_format or plots.get("format", "jpg")
+        formats = image_format or plots.get("format", "jpg")
+        #: Every chart is saved once per format.
+        self.formats = [formats] if isinstance(formats, str) else list(formats)
+        #: The copy the web UI previews — a raster or vector image if one is
+        #: written, since a browser cannot show a PDF as an image.
+        self.format = next((f for f in PREVIEW_ORDER if f in self.formats), self.formats[0])
         self.result_folder = result_folder or plots.get("resultsFolder", "results")
         self.base_name = base_name
 
@@ -122,10 +131,11 @@ class PlotBuilder:
         fig.tight_layout()
 
         name = slugify(filename if filename else title)
-        path = os.path.join(self.output_folder, f"{name}.{self.format}")
-        fig.savefig(path, dpi=self.dpi)
+        for fmt in self.formats:
+            fig.savefig(os.path.join(self.output_folder, f"{name}.{fmt}"), dpi=self.dpi)
         plt.close(fig)
-        return path
+        # The preview copy, which is what the progress channel links to.
+        return os.path.join(self.output_folder, f"{name}.{self.format}")
 
     # ------------------------------------------------------------ multi-agent
 

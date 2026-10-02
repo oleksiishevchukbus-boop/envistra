@@ -101,8 +101,13 @@ async def create_company(request: CompanyCreateRequest):
 
 @router.put("/{name}", response_model=CompanyResponse)
 async def update_company(name: str, request: CompanyUpdateRequest):
-    """Merge changes. `enabled` changes the market; `plot` changes only charts."""
-    changes = request.model_dump(exclude_none=True)
+    """Merge changes. `enabled` changes the market; `plot` changes only charts.
+
+    An explicit `"color": null` clears the stored colour, so the loader assigns
+    one again; any other null field means "leave unchanged".
+    """
+    changes = {k: v for k, v in request.model_dump(exclude_unset=True).items()
+               if v is not None or k == "color"}
     updated = get_company_manager().update(name, changes)
     if updated is None:
         raise HTTPException(status_code=404, detail=f"Company '{name}' not found")

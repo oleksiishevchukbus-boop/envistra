@@ -1,7 +1,7 @@
 """Pydantic models for API request/response schemas."""
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
 
 
@@ -32,9 +32,15 @@ class SimulationCreateResponse(BaseModel):
 
 class ImageInfo(BaseModel):
     name: str
+    #: The preview copy — see `formats` for every copy of this chart.
     filename: str
     path: str
     category: str
+    #: False when the chart was written only as PDF, which a browser cannot
+    #: embed as an image; the UI then offers it to open or download.
+    previewable: bool = True
+    #: Every format this chart was written in, extension -> URL.
+    formats: Dict[str, str] = {}
 
 
 class SimulationInfo(BaseModel):
