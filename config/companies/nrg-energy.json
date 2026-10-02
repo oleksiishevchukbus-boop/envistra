@@ -1,6 +1,6 @@
 {
   "name": "NRG ENERGY",
-  "dataSource": "NRG ENERGY, INC.",
+  "dataSource": "NRG ENERGY, INC",
   "strategy": "green",
   "enabled": true,
   "plot": false,

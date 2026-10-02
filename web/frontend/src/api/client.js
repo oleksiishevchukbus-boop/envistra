@@ -127,6 +127,12 @@ class ApiClient {
     });
   }
 
+  // The companies the workbooks contain — what a company's dataSource may name.
+  // Empty when no workbooks are present.
+  async listDataSources() {
+    return this.request('/data-sources');
+  }
+
   // Environment
   async getEnvironment() {
     return this.request('/environment');

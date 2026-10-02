@@ -50,7 +50,7 @@ class CompanyListResponse(BaseModel):
 
 class CompanyCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    #: Must match a "Name" in the workbooks. Not checked here — the data may not
+    #: Must match a workbook filename (without .xlsx). Not checked here — the data may not
     #: be present — so a mismatch surfaces when a simulation next runs.
     dataSource: str = Field(min_length=1)
     strategy: str = Field(min_length=1, description="Strategy filename id, e.g. 'business'")

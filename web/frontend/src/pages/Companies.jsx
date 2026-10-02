@@ -25,6 +25,8 @@ const PARAMETERS = [
 function Companies() {
   const [companies, setCompanies] = useState([])
   const [strategies, setStrategies] = useState([])
+  const [dataSources, setDataSources] = useState([])
+  const [sourceError, setSourceError] = useState(null)
   const [totals, setTotals] = useState({ total: 0, enabled: 0, plotted: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -39,6 +41,7 @@ function Companies() {
       const [companyData, strategyData] = await Promise.all([
         api.listCompanies(),
         api.listStrategies(),
+        loadDataSources(),
       ])
       setCompanies(companyData.companies || [])
       setTotals({
@@ -51,6 +54,22 @@ function Companies() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Fetched apart from the rest, and on every opening of the form, so a
+  // workbook added while the app runs is offered without a reload. A failure
+  // (an unreadable workbook) only degrades the field to free text.
+  const loadDataSources = async () => {
+    try {
+      const data = await api.listDataSources()
+      setDataSources(data.dataSources || [])
+      setSourceError(null)
+      return data.dataSources || []
+    } catch (err) {
+      setDataSources([])
+      setSourceError(err.message)
+      return []
     }
   }
 
@@ -109,8 +128,24 @@ function Companies() {
           plot: company.plot,
           parameters: { ...company.parameters },
         }
-      : { ...EMPTY, strategy: strategies[0]?.id || '' })
+      : { ...EMPTY, strategy: strategies[0]?.id || '', dataSource: dataSources[0]?.name || '' })
+
+    loadDataSources().then((sources) => {
+      if (company || !sources.length) return
+      setForm((f) => (f && !f.dataSource ? { ...f, dataSource: sources[0].name } : f))
+    })
   }
+
+  // With no workbooks loaded nothing can be checked, so nothing is flagged.
+  const knownSources = new Set(dataSources.map((s) => s.name))
+  const isMissing = (source) => Boolean(source) && dataSources.length > 0 && !knownSources.has(source)
+
+  // A workbook is data/<industry>/<source>.xlsx. Companies reference only the
+  // filename, so the same one in two folders is one source twice — and no
+  // simulation starts.
+  const conflicts = dataSources.filter((s) => s.files.length > 1)
+  const filesOf = (source) => dataSources.find((s) => s.name === source)?.files || []
+  const isDuplicated = (source) => filesOf(source).length > 1
 
   if (loading) {
     return (
@@ -146,6 +181,25 @@ function Companies() {
         </div>
       )}
 
+      {conflicts.length > 0 && (
+        <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded text-sm font-mono text-amber-200">
+          <p className="mb-2">
+            {conflicts.length === 1 ? 'A workbook filename occurs' : `${conflicts.length} workbook filenames occur`} in
+            more than one folder. No simulation will start until each is unique.
+          </p>
+          <ul className="space-y-1 text-amber-300/90">
+            {conflicts.map((s) => (
+              <li key={s.name}>{s.name}: {s.files.join(', ')}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-amber-200/60">
+            A data source is the workbook's filename and its folder is the industry, so a
+            filename must be unique across folders. Remove one of the files, or rename it to
+            add it as a separate source.
+          </p>
+        </div>
+      )}
+
       <div className="bg-navy-900/80 rounded-lg border border-primary-800/50 overflow-hidden">
         <table className="w-full text-sm font-mono">
           <thead className="bg-navy-950/50 text-[10px] uppercase tracking-wider text-gray-500">
@@ -173,7 +227,19 @@ function Companies() {
                     </span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-400">{company.dataSource}</td>
+                <td className="px-4 py-3 text-gray-400">
+                  {company.dataSource}
+                  {isMissing(company.dataSource) && (
+                    <span className="ml-2 text-[10px] uppercase text-red-400/80" title="Not found in the workbooks">
+                      missing
+                    </span>
+                  )}
+                  {isDuplicated(company.dataSource) && (
+                    <span className="ml-2 text-[10px] uppercase text-amber-400/80" title={filesOf(company.dataSource).join(', ')}>
+                      duplicate
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-gray-400">{company.strategyName || company.strategy}</td>
                 <td className="px-4 py-3 text-center">
                   <Toggle
@@ -223,13 +289,37 @@ function Companies() {
               />
             </Field>
 
-            <Field label="Data source" hint="Must match a company name in the workbooks; checked when a simulation next runs.">
-              <input
-                value={form.dataSource}
-                onChange={(e) => setForm({ ...form, dataSource: e.target.value })}
-                className={inputClass}
-              />
-            </Field>
+            {dataSources.length > 0 ? (
+              <Field label="Data source" hint="The workbook (by filename) whose start-year data seeds this agent, grouped by its folder under data/ — the industry. Several companies may share one.">
+                <DataSourceSelect
+                  value={form.dataSource}
+                  sources={dataSources}
+                  companies={companies}
+                  editing={editing}
+                  missing={isMissing(form.dataSource)}
+                  onChange={(v) => setForm({ ...form, dataSource: v })}
+                />
+                {isDuplicated(form.dataSource) && (
+                  <p className="text-[11px] font-mono text-red-400">
+                    Several workbooks have this filename: {filesOf(form.dataSource).join(', ')}.
+                    No simulation will run until one is removed or renamed.
+                  </p>
+                )}
+              </Field>
+            ) : (
+              <Field
+                label="Data source"
+                hint={sourceError
+                  ? `The workbook list could not be read: ${sourceError}`
+                  : 'No workbooks found under data/, so the name cannot be offered from a list; it is checked when a simulation next runs.'}
+              >
+                <input
+                  value={form.dataSource}
+                  onChange={(e) => setForm({ ...form, dataSource: e.target.value })}
+                  className={inputClass}
+                />
+              </Field>
+            )}
 
             <Field label="Strategy">
               <select
@@ -305,6 +395,37 @@ function Field({ label, hint, children }) {
       {children}
       {hint && <p className="text-[11px] font-mono text-gray-600">{hint}</p>}
     </div>
+  )
+}
+
+// Grouped by industry (the workbook's folder), since quota allocation is scoped
+// per industry. A value
+// not in the workbooks is kept as an option rather than silently replaced, so
+// opening the editor never changes a company's data source by itself.
+function DataSourceSelect({ value, sources, companies, editing, missing, onChange }) {
+  const usage = {}
+  for (const c of companies) {
+    if (c.name !== editing) usage[c.dataSource] = (usage[c.dataSource] || 0) + 1
+  }
+
+  const byIndustry = {}
+  for (const s of sources) (byIndustry[s.industry] ||= []).push(s)
+
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+      {missing && <option value={value}>{value} — not in workbooks</option>}
+      {Object.entries(byIndustry).map(([industry, names]) => (
+        <optgroup key={industry} label={industry}>
+          {names.map(({ name, files }) => (
+            <option key={name} value={name}>
+              {name}
+              {usage[name] ? ` · used by ${usage[name]}` : ''}
+              {files.length > 1 ? ` · ${files.length} files ⚠` : ''}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   )
 }
 

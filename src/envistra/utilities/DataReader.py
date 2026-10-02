@@ -4,6 +4,10 @@ This is where configuration meets data: `config/companies/*.json` supplies the
 roster and its parameters, `data/**/*.xlsx` supplies each company's starting
 position and the industry-level ratios the environment calculators sample from.
 
+A workbook's identity is its path, `data/<industry>/<dataSource>.xlsx`: the
+top-level folder is the industry and the filename is the data source. The
+`Name` and `Industry` columns inside the files are overwritten on read.
+
 Call order matters and is enforced by `envistra.bootstrap.initialize_model`:
 `Read` must precede the ratio getters, and all of them must precede
 `CreateCompanyEntities` / `CreateEnvironmentCalculators`.
@@ -39,6 +43,66 @@ SCALED_COLUMNS = ["Pollution", "TotalAssets", "TotalCurrentAssets",
                   "TotalOperatingExpenses", "COGS", "Revenue"]
 
 
+def _workbooks():
+    # Excel leaves a `~$Name.xlsx` lock file beside a workbook while it is open;
+    # it matches the pattern but is not a workbook.
+    pattern = os.path.join(GlobalConfig.DataFolder, "**", "*.xlsx")
+    return [f for f in glob.glob(pattern, recursive=True)
+            if not os.path.basename(f).startswith("~$")]
+
+
+def _sourceName(file):
+    """A workbook's data source is its filename without the extension.
+
+    Any `Name` column inside the file is ignored — so copying a workbook under a
+    new filename adds a new source. Filenames must be unique across folders. Note Windows drops a trailing dot from a
+    filename, which is why `NRG ENERGY, INC.` became `NRG ENERGY, INC`.
+    """
+    return os.path.splitext(os.path.basename(file))[0]
+
+
+def _relative(file):
+    return os.path.relpath(file, GlobalConfig.DataFolder).replace(os.sep, "/")
+
+
+def _industry(file):
+    """A workbook's industry is the top-level folder it sits in under `data/`.
+
+    Deeper subfolders are allowed and carry no meaning. Adding a folder adds an
+    industry: its own quota cap, ratios and competitors.
+    """
+    parts = _relative(file).split("/")
+    if len(parts) < 2:
+        raise ConfigError(file, "a workbook must sit in a folder under data/ — "
+                                "the folder is its industry")
+    return parts[0]
+
+
+def _bySource(files):
+    """`{source: [files]}`. Companies reference only the filename, so the same
+    filename in two folders is one source twice — a conflict."""
+    grouped = {}
+    for file in sorted(files):
+        grouped.setdefault(_sourceName(file), []).append(file)
+    return grouped
+
+
+def ListDataSources():
+    """Every data source in the workbooks, as `[{name, industry, files}]`.
+
+    These are the values a company config's `dataSource` may take. Both come
+    from the path, so no workbook is opened. More than one entry in `files`
+    means the same filename sits in several folders, which `DataReader.Read`
+    rejects. Returns an empty list when no workbooks are present — the data is
+    untracked, so a caller must cope.
+    """
+    sources = [{"name": name,
+                "industry": _industry(files[0]),
+                "files": [_relative(f) for f in files]}
+               for name, files in _bySource(_workbooks()).items()]
+    return sorted(sources, key=lambda s: (s["industry"], s["name"]))
+
+
 class DataReader:
     def __init__(self, companies):
         #: Every company config that was found.
@@ -49,13 +113,23 @@ class DataReader:
 
     def Read(self):
         """Load every workbook under the data folder and scale to model units."""
-        pattern = os.path.join(GlobalConfig.DataFolder, "**", "*.xlsx")
-        files = glob.glob(pattern, recursive=True)
+        files = _workbooks()
         if not files:
             raise ConfigError(GlobalConfig.DataFolder,
                               "no .xlsx workbooks found — see data/README.md")
 
-        self.df = pd.concat([pd.read_excel(file) for file in files], ignore_index=True)
+        grouped = _bySource(files)
+        clashes = {name: fs for name, fs in grouped.items() if len(fs) > 1}
+        if clashes:
+            raise ConfigError(GlobalConfig.DataFolder, "\n  ".join(
+                f"{name!r} is the filename of several workbooks: "
+                + ", ".join(_relative(f) for f in fs) for name, fs in clashes.items())
+                + "\n  a data source is the filename, so each must be unique")
+
+        # `Name` (the join key) and `Industry` (the groupby key) come from the
+        # path; any such columns inside the workbook are overwritten.
+        self.df = pd.concat([pd.read_excel(fs[0]).assign(Name=name, Industry=_industry(fs[0]))
+                             for name, fs in grouped.items()], ignore_index=True)
         self.df[SCALED_COLUMNS] *= GlobalConfig.Startup.MoneyValueMultiplier
 
         # Fail here, naming the company, rather than deep inside entity creation.

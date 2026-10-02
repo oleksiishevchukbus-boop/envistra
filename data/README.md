@@ -38,12 +38,12 @@ prohibited.
 directory structure and this file are tracked; the data is not. A fresh clone therefore
 has the layout but no workbooks, and the model will not run until they are placed.
 
-To run the model, copy the twelve workbooks into the folders below. Any layout works —
-see "Folder names are decorative".
+To run the model, copy the twelve workbooks into the folders below. The folder a workbook
+sits in is its industry — see "The folder is the industry".
 
 ```
 data/
-├── hydro/        AES CORP, DRAX GROUP PLC, NRG ENERGY, INC.
+├── hydro/        AES CORP, DRAX GROUP PLC, NRG ENERGY, INC
 ├── nec/          AGL ENERGY LTD, ATCO LTD, CEZ A.S, CHUBU ELECTRIC POWER CO INC
 ├── petroleum/    ITALGAS SPA, SNAM SPA
 └── solar/        EDP RENOVAVEIS, ENGIE BRASIL ENERGIA SA, INFIGEN ENERGY
@@ -58,9 +58,9 @@ Each workbook: **first sheet only**, header in row 1, these ten columns in this 
 | Column | Type | Used for |
 |---|---|---|
 | `Year` | integer | starting-row filter and sort |
-| `Name` | text | the join key to an agent — see the contract below |
+| `Name` | text | **ignored** — the filename is the data source (see below) |
 | `Country` | text | **unused** by the code |
-| `Industry` | text | `groupby` key for industry-level ratios; passed to the entity |
+| `Industry` | text | **ignored** — the folder is the industry (see below) |
 | `Pollution` | number | initial pollution |
 | `TotalAssets` | number | initial assets |
 | `TotalCurrentAssets` | number | scaled but **never read** — must still exist |
@@ -75,31 +75,50 @@ The loader is unforgiving and its failures are opaque — a violation usually su
 `.item()` call deep inside entity creation, with nothing naming the offending company.
 Check these before blaming the model:
 
-1. **Exactly one row per `Name` with `Year == 2010`.** Zero rows and two rows fail
+1. **Exactly one row per workbook with `Year == 2010`.** Zero rows and two rows fail
    identically. 2010 is `GlobalConfig.Startup.Year`.
 2. **`Year` must be an integer column.** It is compared with `==` against a Python `int`.
    Stored as text or as a date, the filter silently matches nothing.
-3. **`Name` must match `GlobalConfig`'s `DataName` byte-for-byte.** Two traps:
-   - `CEZ A.S` is the data value; `CEZ A S` (no dot) is the *agent* name. They differ
-     deliberately and are not interchangeable.
-   - `NRG ENERGY, INC.` contains a comma and a trailing period. Both are significant.
-4. **`Industry` strings must be identical across files in the same group** — they are
-   `groupby` keys, so a stray space silently splits one industry into two.
+3. **The filename is the data source.** A company config's `dataSource` must equal the
+   filename without `.xlsx`, byte-for-byte; any `Name` column in the file is overwritten
+   on read. So copying a workbook under a new filename adds a new source. Two traps:
+   - `CEZ A.S` is the data source; the agent's own `name` is separate and may differ.
+   - Windows strips a trailing period from filenames, so the source is `NRG ENERGY, INC`
+     (no final dot), although the cells inside still say `NRG ENERGY, INC.`.
+   Filenames must be unique across all folders, because a company names only the file.
+4. **A workbook must sit in a folder under `data/`; the top-level folder is its
+   industry.** A file directly in `data/` is rejected.
 5. **All ten columns must be present.** Six of them are scaled in one statement, so a
    missing column raises `KeyError` even if nothing later reads it — this is why
    `TotalCurrentAssets` cannot simply be dropped.
 
-## Folder names are decorative
+## The folder is the industry
 
-`DataReader.Read()` performs a single recursive glob, `data/**/*.xlsx`, and concatenates
-whatever it finds. The file path is never parsed. Nesting depth, folder names and file
-names carry no meaning: the four folders here mirror the four `Industry` values purely as
-a human convenience, and the taxonomy the model actually uses comes from the `Industry`
-**column**.
+`DataReader.Read()` performs a single recursive glob, `data/**/*.xlsx` (skipping Excel's
+`~$` lock files), and identifies each workbook by its path alone:
+`data/<industry>/<dataSource>.xlsx`. The `Name` and `Industry` columns are overwritten.
+Deeper subfolders are allowed and carry no meaning (`data/solar/2024/X.xlsx` is `solar`).
+
+The industry is the model's group: quota caps, the industry-level ratios and competition
+are all scoped by it. So **adding a folder adds an industry**, and moving a workbook to
+another folder moves the company to another group. Unlike a cell value, a folder name
+cannot differ by a stray space between files of one group.
+
+The `Industry` cells hold EXIOBASE/GTAP-style labels, one per folder:
+
+| Folder | Former `Industry` value |
+|---|---|
+| `hydro` | Production of electricity by hydro |
+| `nec` | Production of electricity nec ("not elsewhere classified") |
+| `petroleum` | Production of electricity by petroleum and other oil derivatives |
+| `solar` | Production of electricity by solar photovoltaic |
+
+The grouping is identical, so results are unchanged; only the label in the history's
+`Industry` column is now the folder name.
 
 The predecessor project used `_Hydro/`, `_Nec/`, `_Petroleum/`, `_Solar/` and filenames
 with a trailing underscore. Those underscores were dropped on transfer; the cell contents
-were not touched. `nec` is "not elsewhere classified".
+were not touched.
 
 `GlobalConfig.DataFolder` is the relative path `"data"`, resolved against the **process
 working directory** — so the model must be run from the repository root, and this folder

@@ -167,7 +167,9 @@ A company names its strategy by id and adds its four personal parameters:
 ```
 
 `name` is the agent label (DataCollector `Name`, plot legends, results folders).
-`dataSource` joins to the workbooks' `Name` column; several companies may share one, as
+`dataSource` is a workbook's filename without `.xlsx`. A workbook's identity is its path,
+`data/<industry>/<dataSource>.xlsx` — the top-level folder is the industry, and the `Name`
+and `Industry` columns inside are overwritten on read. Several companies may share one, as
 the four AES CORP variants do. This one file replaces both hardcoded structures the
 predecessor used — `GlobalConfig.AgentList` and `CampaignAgentConfigDict` — so the
 unguarded `KeyError` when a name appeared in one but not the other is gone by construction.
@@ -478,6 +480,17 @@ which is why the launcher can move the API port and the proxy still follows.
 - **`/companies` is a new page** — the roster is file-driven now, so it lists every
   company with its effective colour and toggles for `enabled` (takes part in the
   simulation) and `plot` (drawn in the charts), plus create, edit and delete.
+- **The data source is picked from a list**, served by `/api/data-sources`, which globs
+  the workbook paths on each request without opening them; the form groups it by industry,
+  i.e. by folder. A stored value not in the data is kept and flagged "missing", never
+  replaced. With no workbooks present, or the list unreadable, the field falls back to free
+  text. The list is refetched each time the form opens, so a workbook or folder added while
+  the app runs appears without a restart; Excel's `~$` lock files are skipped here and by
+  `DataReader.Read`. A copied-and-renamed workbook is a new source, and a new folder a new
+  industry. A filename in two folders is a conflict: flagged in the UI (banner, table,
+  form) and rejected by `DataReader.Read`.
+- **The history's `Industry` values are folder names** (`hydro`, `solar`, …) rather than
+  the EXIOBASE labels in the cells. The grouping is the same, so results are unchanged.
 - **The Dashboard's counts come from the API.** It used to say a hardcoded "4 agents";
   it now reports how many are simulated and how many charted, and offers a seed field.
 - **Reset buttons became "Reload from Disk"** on both config pages, matching the backend.

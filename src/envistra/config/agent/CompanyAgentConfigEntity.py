@@ -37,7 +37,7 @@ class CompanyAgentConfigEntity:
         #: Agent label — DataCollector "Name", plot legends, results folders.
         self.name = require_kwarg(kwargs, 'name', 'CompanyAgentConfigEntity')
 
-        #: Join key into the workbooks' "Name" column. Several companies may
+        #: A workbook filename without .xlsx — the join key into the data. Several companies may
         #: share one dataSource: the four AES CORP variants differ only by
         #: strategy, which is what the strategy comparison exercises.
         self.dataSource = require_kwarg(kwargs, 'dataSource', 'CompanyAgentConfigEntity')
