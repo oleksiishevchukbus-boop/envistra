@@ -6,10 +6,10 @@ from envistra.config.environment.EnvironmentConfig import EnvironmentConfig
 # TODO: (for __CompetitiveApproach) Consider mean|median for stdFinEff
 # TODO: Look for other ways of FinalMean calculation
 class RevenueCalculator:
-    def __init__(self, approach, mean, variance):
+    def __init__(self, approach, mean, std):
         self.approach = approach
         self.mean = mean
-        self.variance = variance
+        self.std = std
 
     def Calculate(self,
         expenses,
@@ -40,7 +40,7 @@ class RevenueCalculator:
         industry
     ):
         finalMean = self.mean[industry] * (1 + finEff * EnvironmentConfig.RevenueCalculator.FinEffImpactMultiplier)
-        revenueToExpensesRatio = random.gauss(finalMean, self.variance[industry])
+        revenueToExpensesRatio = random.gauss(finalMean, self.std[industry])
         revenue = revenueToExpensesRatio * expenses
         return revenue, revenueToExpensesRatio
 
@@ -56,6 +56,6 @@ class RevenueCalculator:
         competitionComponent = EnvironmentConfig.RevenueCalculator.CompetitionInfluence * (deltaFinEff / maxFinEff)
 
         finalMean = self.mean[industry] * (1 + finEff * EnvironmentConfig.RevenueCalculator.FinEffImpactMultiplier + competitionComponent)
-        revenueToExpensesRatio = random.gauss(finalMean, self.variance[industry])
+        revenueToExpensesRatio = random.gauss(finalMean, self.std[industry])
         revenue = revenueToExpensesRatio * expenses
         return revenue, revenueToExpensesRatio

@@ -1,25 +1,25 @@
 {
   "name": "Revenue by Quota",
-  "description": "20% Financial / 80% Ecological focus",
+  "description": "30% Financial / 70% Ecological focus",
   "color": "#DFAE4E",
   "estimators": {
     "expenses": {
-      "approach": "performance_based",
-      "changeThreshold_Upper": 0.125,
-      "changeThreshold_Lower": 0.025,
+      "approach": "performance_based_relative",
+      "changeThreshold_Upper": 0.2,
+      "changeThreshold_Lower": 0.02,
       "smoothingAlpha": 0.7,
       "featuresImpact": {
-        "netRevenue": 0.55,
-        "quotaExceedance": 0.45
+        "netRevenue": 0.5,
+        "quotaExceedance": 0.5
       }
     },
     "investment": {
       "approach": "revenue_based",
       "investmentRatios": {
-        "revenueToInvestmentRatio": 0.075,
-        "minimalInvestment": 0.002,
-        "finInvestment": 0.2,
-        "ecoInvestment": 0.8
+        "revenueToInvestmentRatio": 0.1,
+        "minimalInvestment": 0.005,
+        "finInvestment": 0.3,
+        "ecoInvestment": 0.7
       },
       "smoothingAlpha": 0.3,
       "baseQuotaPrice": 2.5,
@@ -30,27 +30,27 @@
     },
     "expenses_re_estimation": {
       "approach": "gap_proportional",
-      "maxReductionRate": 0.2,
-      "profitMargin": 1.0,
-      "maxReductionCap": 0.0,
-      "baseRate": 0.0,
-      "trendSensitivity": 0.0
+      "maxReductionRate": 0.15,
+      "profitMargin": 1,
+      "maxReductionCap": 0,
+      "baseRate": 0,
+      "trendSensitivity": 0
     }
   },
   "calculators": {
     "quota_to_sell_amount": {
       "approach": "reserve_based",
-      "quotaReserve": 0.02
+      "quotaReserve": 0.002
     },
     "quota_to_sell_price": {
       "approach": "history_based",
-      "unitPrice": 2.25,
-      "changeThreshold": 0.5,
-      "salesTarget": 0.75
+      "unitPrice": 2,
+      "changeThreshold": 0.25,
+      "salesTarget": 0.65
     },
     "quota_to_buy_amount": {
       "approach": "reserve_based",
-      "quotaReserve": 0.02
+      "quotaReserve": 0
     },
     "quota_to_buy_price": {
       "approach": "economically_efficient",

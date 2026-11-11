@@ -5,8 +5,8 @@
   "enabled": true,
   "plot": false,
   "parameters": {
-    "finEffCoef": 1.0,
-    "ecoEffCoef": 1.8,
+    "finEffCoef": 0.9,
+    "ecoEffCoef": 1.2,
     "finEffInvest": 1.0,
     "ecoEffInvest": 1.0
   }

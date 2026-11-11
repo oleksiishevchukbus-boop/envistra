@@ -6,7 +6,7 @@
   "plot": false,
   "parameters": {
     "finEffCoef": 1.0,
-    "ecoEffCoef": 1.35,
+    "ecoEffCoef": 1.25,
     "finEffInvest": 1.0,
     "ecoEffInvest": 1.0
   }

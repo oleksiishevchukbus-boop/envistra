@@ -4,9 +4,9 @@
   "color": "#DF4E4E",
   "estimators": {
     "expenses": {
-      "approach": "performance_based",
-      "changeThreshold_Upper": 0.15,
-      "changeThreshold_Lower": 0.05,
+      "approach": "performance_based_relative",
+      "changeThreshold_Upper": 0.2,
+      "changeThreshold_Lower": 0.02,
       "smoothingAlpha": 0.7,
       "featuresImpact": {
         "netRevenue": 1,
@@ -16,8 +16,8 @@
     "investment": {
       "approach": "revenue_based",
       "investmentRatios": {
-        "revenueToInvestmentRatio": 0.075,
-        "minimalInvestment": 0.002,
+        "revenueToInvestmentRatio": 0.1,
+        "minimalInvestment": 0.005,
         "finInvestment": 1,
         "ecoInvestment": 0
       },
@@ -30,11 +30,11 @@
     },
     "expenses_re_estimation": {
       "approach": "none",
-      "maxReductionRate": 0.0,
-      "profitMargin": 1.0,
-      "maxReductionCap": 0.0,
-      "baseRate": 0.0,
-      "trendSensitivity": 0.0
+      "maxReductionRate": 0,
+      "profitMargin": 1,
+      "maxReductionCap": 0,
+      "baseRate": 0,
+      "trendSensitivity": 0
     }
   },
   "calculators": {
@@ -44,7 +44,7 @@
     },
     "quota_to_sell_price": {
       "approach": "general",
-      "unitPrice": 2.5,
+      "unitPrice": 1,
       "changeThreshold": 0,
       "salesTarget": 0.5
     },
@@ -54,7 +54,7 @@
     },
     "quota_to_buy_price": {
       "approach": "ignorance",
-      "assetsPartForTrading": 0.1
+      "assetsPartForTrading": 0
     }
   }
 }

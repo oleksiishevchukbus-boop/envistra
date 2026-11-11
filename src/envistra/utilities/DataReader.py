@@ -209,14 +209,19 @@ class DataReader:
         return self.pollutionToExpensesRatio
 
     def GetRevenueToExpensesDistributionParams(self):
-        """Industry mean and variance of revenue/expenses, sampled by RevenueCalculator."""
+        """Industry mean and standard deviation of revenue/expenses, sampled by RevenueCalculator.
+
+        The spread is the standard deviation, not the variance: `random.gauss`
+        takes sigma, and passing the variance (all below 1 here) shrank the noise
+        2-15x depending on the industry.
+        """
         self.df['RevenueToExpensesRatio'] = (
             self.df["Revenue"] / (self.df["COGS"] + self.df["TotalOperatingExpenses"]))
         grouped = self.df.groupby('Industry')['RevenueToExpensesRatio']
         self.industryBasedRevenueToExpensesDistributionMean = grouped.mean()
-        self.industryBasedRevenueToExpensesDistributionVariance = grouped.var()
+        self.industryBasedRevenueToExpensesDistributionStd = grouped.std()
         return (self.industryBasedRevenueToExpensesDistributionMean,
-                self.industryBasedRevenueToExpensesDistributionVariance)
+                self.industryBasedRevenueToExpensesDistributionStd)
 
     def CreateCompanyEntities(self):
         """One entity per company config, seeded from its start-year row."""
@@ -294,7 +299,7 @@ class DataReader:
             Revenue=RevenueCalculator(
                 EnvironmentConfig.RevenueCalculator.Approach,
                 self.industryBasedRevenueToExpensesDistributionMean,
-                self.industryBasedRevenueToExpensesDistributionVariance,
+                self.industryBasedRevenueToExpensesDistributionStd,
             ),
             Pollution=PollutionCalculator(
                 EnvironmentConfig.PollutionCalculator.Approach,
