@@ -22,14 +22,20 @@ def initialize_model(config_path=None, seed=None):
     `PollutionCalculator.Approach` while deciding how to key the pollution
     ratios — and reading that before the environment is loaded now raises.
 
-    Pass `seed` to make a run reproducible. There are two independent sources of
-    randomness and both must be pinned: Mesa's own RNG drives the shuffled buy
-    order, and `RevenueCalculator` samples `random.gauss` from the `random`
-    module. Seeding one and not the other looks deterministic and is not.
+    Every run is seeded. There are two independent sources of randomness and both
+    must be pinned: Mesa's own RNG drives the shuffled buy order, and
+    `RevenueCalculator` samples `random.gauss` from the `random` module. Seeding
+    one and not the other looks deterministic and is not.
+
+    Without a `seed` one is drawn from OS entropy, so the run still differs from
+    the last one but can be repeated: the seed actually used is `model.seed_value`,
+    which goes into `run_config.json`.
     """
-    if seed is not None:
-        random.seed(seed)
-        np.random.seed(seed)
+    if seed is None:
+        # Below 2**32 because `np.random.seed` accepts nothing larger.
+        seed = random.SystemRandom().randrange(2**32)
+    random.seed(seed)
+    np.random.seed(seed)
 
     environment, strategies, companies, simulation = Loader.load_all(config_path)
 

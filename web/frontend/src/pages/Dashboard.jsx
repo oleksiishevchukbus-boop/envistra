@@ -219,11 +219,11 @@ function Dashboard() {
                     value={seed}
                     onChange={(e) => setSeed(e.target.value)}
                     disabled={isRunning}
-                    placeholder="leave empty for an unrepeatable run"
+                    placeholder="leave empty to generate one"
                     className="w-full px-3 py-2 bg-navy-800 border border-primary-800/50 rounded text-gray-200 font-mono text-sm disabled:opacity-50"
                   />
                   <p className="text-[11px] font-mono text-gray-500">
-                    A seed makes the run reproducible; it is recorded in run_config.json.
+                    The seed used, given or generated, is recorded in run_config.json.
                   </p>
                 </div>
 

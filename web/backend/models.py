@@ -21,7 +21,7 @@ class SimulationCreateRequest(BaseModel):
     steps: int = Field(default=20, ge=1, le=50, description="Number of simulation steps")
     #: Pin the run so it can be reproduced. Omit for a fresh, unrepeatable run;
     #: run_config.json records whichever was used.
-    seed: Optional[int] = Field(default=None, description="Random seed, for a reproducible run")
+    seed: Optional[int] = Field(default=None, description="Random seed; generated and recorded in run_config.json when omitted")
 
 
 class SimulationCreateResponse(BaseModel):

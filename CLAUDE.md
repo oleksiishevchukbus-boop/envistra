@@ -381,7 +381,6 @@ Flag these when the relevant component is transferred; each needs a decision.
   `run_strategy_comparison.generate_plots`.
 - **`utilities/Startup.py` is a 60+ symbol god-module** wildcard-imported by a runner.
   Consider a thin `bootstrap.py` exposing only `initialize_model`.
-- **`RevenueCalculator` uses unseeded `random`/`numpy`** — runs are not reproducible.
 - **Config classes are mutable module-level singletons**, applied in place by
   `Loader.load_environment()`. The model reads them live on every step, so this is
   deliberate; note it is process-global, which matters if the web backend ever runs
@@ -389,14 +388,15 @@ Flag these when the relevant component is transferred; each needs a decision.
 
 ### Reproducibility
 
-**A run is only reproducible if `initialize_model(seed=...)` is given a seed.** There are
+**Every run is seeded: `initialize_model` generates a seed when none is given.** There are
 two independent sources of randomness and both must be pinned: Mesa's own RNG drives the
 shuffled buy order in `shuffle_do("BuyQuota")`, and `RevenueCalculator` samples
 `random.gauss` from the `random` module. Seeding one and not the other looks deterministic
 and is not — seeding only `random` was what the predecessor's structure invited, and a
 regression test asserts it does *not* suffice.
 
-`run_config.json` records the seed; `null` there means the run cannot be reproduced.
+The seed actually used is `model.seed_value` and `run_config.json` records it; `null` there
+appears only in results made before seeds were generated, which cannot be reproduced.
 
 ### Plot output
 

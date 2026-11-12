@@ -74,7 +74,8 @@ for _ in range(20):
 history = model.datacollector.get_agent_vars_dataframe()
 ```
 
-A run repeats exactly only when given a `seed`.
+Without a `seed` one is generated; either way the seed used is `model.seed_value`
+and is recorded in `run_config.json`, so every run can be repeated.
 
 ## Configuration
 

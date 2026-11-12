@@ -172,8 +172,8 @@ def build_run_metadata(companies, simulation_steps, start_year=None, mlp_metrics
             "start_year": start_year,
             "end_year": start_year + simulation_steps - 1,
             "agent_count": len(companies),
-            # None means the run was not reproducible: Mesa's shuffled buy order
-            # and RevenueCalculator's Gaussian both ran unseeded.
+            # Always set now that a seed is generated when none is given; None
+            # only in older results, which cannot be reproduced.
             "seed": seed,
         },
         "global_config": serialize_global_config(),

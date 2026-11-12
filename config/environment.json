@@ -1,12 +1,12 @@
 {
   "revenue_calculator": {
     "approach": "competitive_industry_based",
-    "competition_influence": 0.125,
+    "competition_influence": 0.15,
     "fin_eff_impact_multiplier": 1
   },
   "pollution_calculator": {
     "approach": "company_based",
-    "env_eff_impact_multiplier": 1.15
+    "env_eff_impact_multiplier": 1.1
   },
   "quota_manager": {
     "approach": "improvement_rewarding",

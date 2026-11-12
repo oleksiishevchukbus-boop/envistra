@@ -75,7 +75,8 @@ class SimulationRunner:
         marker = Path(plotter.output_folder) / IN_PROGRESS_MARKER
         marker.touch()
         try:
-            run_plot_suite(plotter, steps=steps, on_plot=on_plot, seed=seed)
+            # The seed the model ran with — generated if the request gave none.
+            run_plot_suite(plotter, steps=steps, on_plot=on_plot, seed=model.seed_value)
         finally:
             marker.unlink(missing_ok=True)
         return _folder_name(plotter)

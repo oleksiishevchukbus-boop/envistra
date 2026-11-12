@@ -256,16 +256,18 @@ function About() {
 
       <Section title="Reproducibility" accent="eco">
         <p>
-          A run repeats exactly only if you give it a{' '}
+          Every run is driven by a{' '}
           <span className="text-gray-100">seed</span>. There are two independent sources
           of randomness and a seed pins both: the shuffled order of the buy phase, and the
-          sampling of realised revenue from its industry distribution.
+          sampling of realised revenue from its industry distribution. Leave the seed empty
+          and one is generated, so each run differs but can still be repeated.
         </p>
         <p>
           Every run writes <code className="text-gray-100">run_config.json</code> beside
-          its charts, recording the seed, the environment regime and every company's fully
-          resolved configuration. A <code>null</code> seed there means that run cannot be
-          reproduced.
+          its charts, recording the seed it used, the environment regime and every
+          company's fully resolved configuration. Starting a run with that seed and the
+          same configuration reproduces it. Only results made before seeds were generated
+          carry a <code>null</code> seed; those cannot be reproduced.
         </p>
         <p className="text-gray-400">
           Results also include <code>model_history.csv</code> — the complete per-agent,
